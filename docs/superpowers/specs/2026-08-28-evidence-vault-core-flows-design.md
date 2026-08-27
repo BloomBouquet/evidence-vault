@@ -59,10 +59,13 @@ Primary actions appear in the current document or case context instead of being 
 │  ├─ evidence checklist
 │  ├─ factual summary
 │  └─ export review
+├─ /guide
 └─ /account
 
 /case/[id]/export
 ```
+
+`/guide` is a factual official-source guide surface. It does not provide individualized legal advice and each substantive guide item must carry its source and verification date when implemented.
 
 The exact App Router grouping may change during implementation, but the user-visible route responsibilities and transitions in this document are the product contract.
 
@@ -458,6 +461,7 @@ DES-001 is complete when this spec gives Frontend/Backend Agents an unambiguous 
 - case preparation,
 - export review,
 - account/sign-out/deletion,
+- factual official-source guide navigation,
 - loading/empty/error/permission/retry states,
 - mobile/keyboard/accessibility constraints,
 - legal/privacy-neutral wording boundaries.
