@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SignOutButton } from "./sign-out-button";
 
 export function ProtectedShell({
   user,
@@ -25,6 +26,7 @@ export function ProtectedShell({
 
         <div className="protected-identity" aria-label="현재 증빙함 사용자">
           <span>{user.displayName}</span>
+          <SignOutButton />
         </div>
       </header>
 
