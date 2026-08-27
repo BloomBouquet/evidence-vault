@@ -10,18 +10,11 @@
 
 Evidence Vault needs a product-specific visual system before dashboard, authentication, timeline, evidence upload, case mode, export, and privacy flows expand the application.
 
-The existing landing page already has a recognizable identity:
+The existing landing page already has a recognizable identity: warm paper background, dark ink text, restrained green accent, editorial serif display typography, document-like borders, and low-decoration UI that fits a factual evidence product.
 
-- warm paper background,
-- dark ink text,
-- restrained green accent,
-- editorial serif display typography,
-- document-like borders and spacing,
-- low-decoration UI that fits a factual evidence product.
+DS-001 preserves that identity while turning it into reusable semantic tokens and accessible primitives. This task is not a visual rebrand.
 
-The design-system task should preserve that identity while turning it into reusable semantic tokens and accessible primitives. This task is not a visual rebrand.
-
-## 2. Product principles the design must express
+## 2. Product principles
 
 The interface should feel:
 
@@ -38,60 +31,33 @@ The interface should feel:
 
 Keep the existing paper/ink/green visual language, replace raw visual values with semantic tokens, and introduce a small set of reusable primitives.
 
-**Advantages**
+Advantages: preserves product identity, has low migration risk, fits evidence/document workflows, avoids generic SaaS styling, and scales to mobile/desktop.
 
-- preserves already-created product identity,
-- low migration risk,
-- visually compatible with evidence/document workflows,
-- avoids generic SaaS dashboard styling,
-- can grow into mobile and desktop layouts.
+Trade-off: hierarchy must be deliberate so the interface does not become visually flat; serif display typography must remain limited to headings.
 
-**Trade-offs**
-
-- requires careful hierarchy so the interface does not become visually flat,
-- serif display typography must remain limited to headings to protect readability.
-
-### Approach B — Convert the product into a conventional SaaS dashboard system
+### Approach B — Conventional SaaS dashboard system
 
 Use neutral gray surfaces, rounded cards, standard sidebar navigation, and common dashboard components.
 
-**Advantages**
-
-- familiar implementation patterns,
-- easy component-library mapping.
-
-**Trade-offs**
-
-- loses Evidence Vault's current identity,
-- risks looking like a generic admin/finance dashboard,
-- visually overstates metrics instead of records and evidence.
+Advantage: familiar implementation patterns.  
+Trade-off: loses the current identity, risks a generic admin/finance look, and over-emphasizes metrics rather than records.
 
 ### Approach C — Ultra-minimal utility UI
 
-Remove nearly all decorative identity and use monochrome controls, table-like layouts, and minimal spacing.
+Use monochrome controls, table-like layouts, and very little decorative identity.
 
-**Advantages**
-
-- simple and efficient,
-- strong information density.
-
-**Trade-offs**
-
-- can feel cold and institutional,
-- weak first-time trust and onboarding experience,
-- poor differentiation from ordinary file/document utilities.
+Advantage: efficient information density.  
+Trade-off: can feel cold/institutional and weakens first-time trust and differentiation.
 
 ## 4. Decision
 
 Use **Approach A**.
 
-The existing editorial-paper identity remains the source style, but all future screens use semantic tokens and reusable components rather than page-specific CSS values.
+The editorial-paper identity remains the source style, but future screens use semantic tokens and reusable components rather than page-specific raw CSS values.
 
-The design system must not introduce unsupported glow effects, glassmorphism, decorative gradients, neon accent colors, excessive rounded cards, fake dashboard metrics, or emoji-led UI.
+The system must not introduce unsupported glow effects, glassmorphism, decorative gradients, neon accent colors, excessive rounded cards, fake dashboard metrics, or emoji-led UI.
 
 ## 5. Color system
-
-The current palette is retained but renamed by semantic purpose.
 
 ### Base tokens
 
@@ -106,171 +72,134 @@ The current palette is retained but renamed by semantic purpose.
 | `--color-border-strong` | `#1c211c` | high-emphasis document boundary |
 | `--color-brand` | `#244a34` | trusted green brand/action accent |
 | `--color-accent-soft` | `#d9ef93` | selected/count/highlight accent |
+| `--color-info` | `#3f5661` | informational text/accent |
+| `--color-info-soft` | `#e7edef` | informational surface |
+| `--color-success` | `#244a34` | successful application operation |
+| `--color-success-soft` | `#edf0e4` | success surface |
+| `--color-warning` | `#6f5414` | attention-required text/accent |
+| `--color-warning-soft` | `#f3e5ad` | attention surface |
 | `--color-danger` | `#8f3a2e` | destructive/error text |
-| `--color-danger-soft` | `#f1d3c8` | destructive/error background |
+| `--color-danger-soft` | `#f1d3c8` | destructive/error surface |
 
-The implementation may adjust exact values only when contrast testing proves an accessibility issue. Semantic names are stable; raw values are not public component APIs.
+These are initial values, not immutable brand constants. Implementation must contrast-test the actual text/background combinations and may adjust raw values while preserving semantic token names.
 
 ### Status semantics
 
-Status color alone must never carry meaning. Every status includes visible text and, when necessary, an icon or shape.
+Status color alone never carries meaning. Every status has visible text and, where useful, an icon or shape.
 
 - `neutral`: ordinary record state.
 - `info`: source/context information.
-- `success`: completed/saved/verified application operation.
-- `warning`: attention required, including an approaching user-recorded date.
+- `success`: completed/saved application operation.
+- `warning`: user attention required.
 - `danger`: destructive action, upload rejection, permission/security failure.
 
-A deadline warning communicates proximity only. It must not visually claim that a legal deadline has been established by the service.
+A deadline warning communicates proximity only. It never claims the service established a legal deadline.
 
 ## 6. Typography
 
-### Families
+Families:
 
 - Body/UI: `Pretendard`, `Noto Sans KR`, `Apple SD Gothic Neo`, system sans-serif fallback.
-- Display heading: Georgia/serif fallback, used only for large marketing or section headings.
+- Display: Georgia/serif fallback, limited to large marketing or section headings.
 - Metadata/date/code-like labels: system monospace stack.
 
-### Roles
+Roles:
 
-- `display`: landing/major section statement only.
-- `heading-lg`: page title.
-- `heading-md`: section/card title.
-- `body`: standard content.
-- `body-sm`: secondary content.
-- `label`: form/action label.
-- `meta`: source labels, dates, evidence metadata, D-day values.
+- `display`
+- `heading-lg`
+- `heading-md`
+- `body`
+- `body-sm`
+- `label`
+- `meta`
 
-Body copy should default to Korean-friendly line height and `word-break: keep-all` where it improves readable sentence wrapping.
+Body copy uses Korean-friendly line height and `word-break: keep-all` where it improves sentence wrapping.
 
 ## 7. Spacing and layout
 
-Use a 4px base rhythm with semantic spacing values:
+Use a 4px base rhythm with semantic values:
 
 `4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48 / 64 / 80 / 96`
 
 Rules:
 
-- normal control height: minimum 44px,
+- normal controls: minimum 44px high,
 - icon-only target: minimum 44×44px,
 - mobile page gutter: minimum 14px, preferred 16–20px,
-- desktop content width: maximum around 1180px for marketing shell,
-- operational content such as forms/timeline may use narrower readable widths,
-- dense evidence metadata may use compact rows but never targets below accessibility minimums.
+- marketing content width: maximum around 1180px,
+- operational forms/timelines may use narrower readable widths,
+- compact evidence metadata must not reduce interactive targets below the accessibility minimum.
 
-Breakpoints should be content-driven. Existing 850px and 520px rules may be retained initially, but components must not depend on device names.
+Breakpoints are content-driven. Existing 850px and 520px rules may remain initially, but components must not depend on device names.
 
 ## 8. Shape and depth
 
-Evidence Vault should feel like documents and folders, not floating application cards.
+Evidence Vault should feel like documents and folders, not floating SaaS cards.
 
 - default radius: small or square (`0–6px`),
-- pill shape reserved for statuses/tags where the shape communicates grouping,
-- strong paper card may use a deliberate offset shadow such as the current deadline preview,
-- repeated operational cards should not all use heavy shadows,
-- borders are preferred over elevation for structure.
+- pills reserved for status/tag grouping,
+- one strong paper card may use a deliberate offset shadow like the current deadline preview,
+- repeated operational cards should not all use heavy elevation,
+- borders are preferred over shadows for structure.
 
 ## 9. Core primitives
 
-The implementation should create a deliberately small project-owned primitive layer.
-
 ### Button
 
-Variants:
+Variants: `primary`, `secondary`, `ghost`, `danger`.  
+Sizes: `sm`, `md`.
 
-- `primary`
-- `secondary`
-- `ghost`
-- `danger`
+Required behavior: native button/link semantics, visible focus, disabled state, pending/busy state, stable width where practical, and explicit destructive text.
 
-Sizes:
+### FieldGroup
 
-- `sm`
-- `md`
-
-Required behavior:
-
-- keyboard focus-visible treatment,
-- disabled state,
-- pending/busy state with stable width where practical,
-- no action conveyed by color alone,
-- destructive variant uses explicit text.
+Owns the stable relationship among label, input, hint, error, and optional privacy/context note.
 
 ### TextField
 
-Required behavior:
-
-- visible label,
-- optional hint,
-- error association using `aria-describedby`,
-- invalid state using `aria-invalid`,
-- disabled/read-only states visually distinct,
-- no placeholder-only labels.
+Requires a visible label, optional hint, `aria-describedby` linkage, `aria-invalid`, and distinct disabled/read-only presentation. Placeholder-only labels are prohibited.
 
 ### TextArea
 
-Same accessibility contract as TextField; used for factual notes and summaries.
+Uses the same accessibility contract as TextField and is intended for factual notes/summaries.
 
 ### SelectField
 
-Used for controlled domain values such as category/event/deadline source. Native select is preferred for MVP unless a custom interaction has a demonstrated product need.
+Used for controlled domain values. Native `<select>` is preferred for MVP unless a later approved flow demonstrates a need for custom interaction.
 
 ### Notice
 
-Variants:
+Variants: `info`, `warning`, `danger`, `privacy`.
 
-- `info`
-- `warning`
-- `danger`
-- `privacy`
-
-Use cases:
-
-- legal-neutral product disclaimer,
-- privacy/redaction warning,
-- upload failure,
-- destructive deletion warning.
+Use cases include legal-neutral product disclaimer, privacy/redaction warning, upload failure, and destructive deletion warning.
 
 ### StatusBadge
 
-Use only for concise state labels such as `업로드 완료`, `삭제 대기`, or `내보내기 생성 중`.
-
-The badge always includes text; color is secondary.
+Used only for concise state labels such as `업로드 완료`, `삭제 대기`, or `내보내기 생성 중`. Text is mandatory; color is secondary.
 
 ### DeadlineIndicator
 
 Inputs:
 
-- `daysRemaining`,
-- user-facing source-labelled deadline text,
-- urgency classification.
+- `daysRemaining: number`,
+- `label: string` containing the source-labelled/user-recorded meaning,
+- `tone: "neutral" | "warning" | "danger"` supplied by product/domain presentation logic.
 
-It may emphasize near dates but never removes wording such as `~로 기록한 날짜` or otherwise converts a recorded date into a legal determination.
-
-### FieldGroup
-
-Groups label, input, hint, error, and optional privacy/context note in a stable layout.
+The design system does **not** define date thresholds and does not infer legal urgency. It only renders the supplied tone and must preserve wording such as `~로 기록한 날짜`.
 
 ### EmptyState
 
-Structure:
+Contains a clear title, one concise explanation, one primary next action, and an optional secondary help link. No decorative illustration is required for MVP.
 
-- clear title,
-- one concise explanation,
-- one primary next action,
-- optional secondary help link.
+### LoadingState
 
-Avoid decorative illustration requirements in MVP.
-
-### LoadingState / Skeleton
-
-Use only when the user would otherwise see layout shift or uncertainty. Auth/session checking must not briefly reveal protected content.
+Provides stable layout feedback for session checks or data loading. It must never reveal protected content while auth state is unresolved. Skeleton styling is allowed only where it improves spatial stability.
 
 ## 10. Product-specific patterns
 
 ### Evidence row
 
-A file/evidence row should prioritize:
+Priority:
 
 1. file/evidence title,
 2. associated event/date,
@@ -279,24 +208,17 @@ A file/evidence row should prioritize:
 5. redaction/export-inclusion state,
 6. actions.
 
-SHA-256 must be labelled as an integrity fingerprint/change-detection value, not as proof of legal authenticity or admissibility.
+SHA-256 is labelled as an integrity/change-detection fingerprint, never proof of legal authenticity or admissibility.
 
 ### Timeline event
 
-Events use chronological structure rather than generic cards. Each event includes:
-
-- recorded occurrence date,
-- event type label,
-- factual title,
-- optional user note,
-- evidence attachment count,
-- record creation metadata only when useful.
+Uses chronological structure rather than generic cards. It includes occurrence date, event type label, factual title, optional user note, attachment count, and record metadata only when useful.
 
 ### Deadline card/row
 
 Hierarchy:
 
-1. D-day/proximity,
+1. proximity/D-day,
 2. Vault item title,
 3. source-labelled deadline meaning,
 4. date,
@@ -304,7 +226,7 @@ Hierarchy:
 
 ### Privacy-sensitive action
 
-Uploads, export, and deletion should visually distinguish:
+Uploads, export, and deletion must visibly distinguish:
 
 - saved vs local/not-yet-saved,
 - private vs excluded-from-export,
@@ -313,51 +235,49 @@ Uploads, export, and deletion should visually distinguish:
 
 ## 11. Focus and keyboard behavior
 
-All interactive primitives must expose a visible focus indicator that is not removed by hover styling.
+All interactive primitives expose a visible `:focus-visible` state that is not removed by hover styling.
 
-Minimum behavior:
-
-- tab order follows visual reading order,
-- Enter/Space semantics remain native for buttons/links,
-- dialogs, if introduced later, require focus trapping and focus return,
-- errors move focus only when doing so clearly improves task completion; otherwise the error summary/field relationship is enough,
-- keyboard operation must cover auth actions, form submission, evidence actions, export selection, and account deletion.
+- tab order follows reading order,
+- Enter/Space native semantics remain intact,
+- later dialogs require focus trap and focus return,
+- errors move focus only when it materially improves completion,
+- keyboard operation must eventually cover auth, forms, evidence actions, export selection, and account deletion.
 
 ## 12. Responsive behavior
 
 ### Mobile
 
-Primary target is a single-column workflow.
+Primary model is a single-column workflow.
 
 - action groups may stack,
-- data tables should become labelled rows rather than horizontal overflow when practical,
+- data tables should become labelled rows when practical rather than force horizontal overflow,
 - essential date/status metadata remains visible,
 - long Korean titles wrap without clipping,
-- fixed bottom actions are allowed only when they do not cover content/focus targets.
+- fixed bottom actions are permitted only when they do not cover content or focus targets.
 
 ### Desktop
 
-Desktop may introduce split views for navigation/detail or timeline/evidence context, but the MVP system does not require a persistent sidebar component.
+Desktop may later use split views for navigation/detail or timeline/evidence context, but DS-001 does not require a persistent sidebar.
 
-The design system should not force application architecture before Designer Agent defines full page flows.
+The design system must not force page architecture before Designer Agent defines full flows.
 
 ## 13. Accessibility acceptance criteria
 
-Before DS-001 is considered implemented:
+Before DS-001 implementation is accepted:
 
-- text/background combinations used by primitives meet WCAG AA contrast for their role,
-- interactive focus is clearly visible,
+- primitive text/background combinations meet WCAG AA contrast for their role,
+- focus is clearly visible,
 - form errors are programmatically associated,
 - status/error meaning is not color-only,
 - interactive targets are at least 44×44px where applicable,
-- components work at 320px viewport width without horizontal page overflow,
+- components operate at 320px viewport width without page-level horizontal overflow,
 - 200% browser zoom remains operable,
 - reduced-motion preference is respected if motion is introduced,
-- loading states do not expose protected content before auth state is resolved.
+- loading/auth checking never flashes protected content.
 
-## 14. Proposed implementation boundaries
+## 14. Implementation boundary
 
-The later implementation plan should use focused files rather than expanding `app/globals.css` indefinitely.
+The later implementation plan should use focused files instead of continuing to expand `app/globals.css`.
 
 Expected structure:
 
@@ -372,30 +292,30 @@ src/components/ui/
   status-badge.tsx
   deadline-indicator.tsx
   empty-state.tsx
+  loading-state.tsx
 
 src/styles/
   tokens.css
   primitives.css
 ```
 
-`app/globals.css` remains responsible for reset/base document rules and imports the project style layers.
-
-The exact file set is finalized in the implementation plan after this spec is approved.
+`app/globals.css` remains responsible for reset/base document rules and imports the style layers. The implementation plan may split component-specific CSS further if tests/maintainability justify it, but it must name the exact files before code begins.
 
 ## 15. Testing strategy
 
-Component tests should cover behavior, accessibility contract, and semantic output rather than snapshotting implementation markup.
+Component tests focus on behavior and accessibility rather than markup snapshots.
 
-Expected checks:
+Required coverage:
 
-- Button renders correct native semantics, disabled and busy states.
-- TextField associates label/hint/error IDs and `aria-invalid` correctly.
-- Notice exposes readable content for every variant without relying on color.
-- DeadlineIndicator preserves recorded-date wording.
+- Button native semantics, disabled, and busy states.
+- Field/TextField label-hint-error relationships and `aria-invalid`.
+- Notice readable content for every variant without color-only meaning.
+- StatusBadge visible text semantics.
+- DeadlineIndicator preserves caller-provided recorded-date wording and has no built-in legal/date threshold logic.
 - EmptyState exposes one clear primary action.
-- keyboard focus styles are present through classes/tokens and manual browser verification.
-
-Production build remains a required PR gate.
+- LoadingState hides protected content while unresolved.
+- manual browser verification confirms focus visibility, 320px operation, 200% zoom, and contrast values.
+- production build remains a PR gate.
 
 ## 16. Non-goals
 
@@ -405,8 +325,8 @@ DS-001 does not design or implement:
 - full authentication pages,
 - timeline page composition,
 - evidence uploader behavior,
-- case/export flow,
-- modal/dialog framework unless another approved flow requires it,
+- case/export workflow,
+- dialog framework unless a later approved flow requires it,
 - dark mode,
 - custom icon library,
 - animation framework,
@@ -417,18 +337,12 @@ Those choices remain owned by later Designer/Frontend tasks.
 
 ## 17. Handoff to Designer Agent
 
-After DS-001 is approved and implemented, Designer Agent receives:
+After DS-001 is approved and implemented, Designer Agent receives semantic color/type/spacing contracts, reusable controls/states, deadline/privacy/evidence patterns, accessibility constraints, and unchanged legal-neutrality requirements.
 
-- semantic color/type/spacing contracts,
-- reusable control/state primitives,
-- product-specific deadline/privacy/evidence patterns,
-- accessibility constraints,
-- unchanged legal-neutrality requirements.
-
-Designer Agent remains free to challenge composition/layout choices, but should not casually bypass semantic tokens or accessibility contracts without documenting why.
+Designer Agent may challenge composition/layout choices, but should not bypass semantic tokens or accessibility contracts without documenting evidence and rationale.
 
 ## 18. Approval decision
 
 Recommended decision: **APPROVE Approach A — preserve and systematize the editorial-paper identity.**
 
-This keeps Evidence Vault visually distinct while providing enough structure for the upcoming auth, dashboard, evidence, case/export, and privacy workflows without prematurely building a large generic component library.
+This keeps Evidence Vault visually distinct while providing enough structure for upcoming auth, dashboard, evidence, case/export, and privacy workflows without prematurely building a large generic component library.
