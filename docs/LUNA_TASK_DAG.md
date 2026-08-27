@@ -38,6 +38,15 @@ Organization Project Intake and Team Evolution are organization-level roles and 
 - Debug / Problem Router is conditional and is dispatched only for blocked execution.
 - A writer task is complete only when branch, commit, PR, and reported verification evidence agree with actual repository state.
 
+## Shared 꽃다발 auth injection
+
+Evidence Vault is `needsAuth=true`, so the upgraded Luna auth policy requires two independent standard tasks:
+
+- Backend `bouquet-auth-server` task.
+- Frontend `bouquet-auth-client` task.
+
+The Frontend auth task directly depends on the Backend auth contract. Neither task may be folded into an unrelated dashboard or domain task.
+
 ## DAG
 
 | ID | Role | Task | Branch | Depends on |
@@ -47,10 +56,11 @@ Organization Project Intake and Team Evolution are organization-level roles and 
 | BE-001 | Backend | Migrate verified Playground baseline + CI | `agent/해바라기/backend/migrate-baseline` | PM-001 |
 | DS-001 | Design System | Product design tokens/primitives | `agent/해바라기/design-system/foundation` | BE-001 |
 | DES-001 | Designer | Core user-flow specification | `agent/해바라기/designer/core-flows` | IDEA-001, DS-001 |
-| BE-002 | Backend | 꽃다발 OAuth callback + app session | `agent/해바라기/backend/bouquet-auth-server` | BE-001 |
+| AUTH-001 | Backend | 꽃다발 SSO server client: OAuth state/PKCE/callback/token/userinfo/app session | `agent/해바라기/backend/bouquet-auth-server` | BE-001 |
+| AUTHUI-001 | Frontend | 꽃다발 SSO client states/login/callback/logout/401 resync | `agent/해바라기/frontend/bouquet-auth-client` | AUTH-001, DES-001 |
 | BE-003 | Backend | Vault/Deadline/Event owner-scoped API | `agent/해바라기/backend/vault-domain-api` | BE-001 |
 | BE-004 | Backend | Private evidence storage + integrity + deletion primitives | `agent/해바라기/backend/private-evidence-storage` | BE-001 |
-| FE-001 | Frontend | 꽃다발 client states + dashboard + Vault CRUD UI | `agent/해바라기/frontend/dashboard-vault-flow` | DES-001, BE-002, BE-003 |
+| FE-001 | Frontend | Dashboard + Vault CRUD UI | `agent/해바라기/frontend/dashboard-vault-flow` | DES-001, AUTHUI-001, BE-003 |
 | FE-002 | Frontend | Timeline/upload/download/privacy UX | `agent/해바라기/frontend/evidence-timeline` | FE-001, BE-004 |
 | BE-005 | Backend | Case mode + export packet + deletion reconciliation | `agent/해바라기/backend/case-export-deletion` | BE-003, BE-004 |
 | FE-003 | Frontend | Case/export/privacy settings + complete app states | `agent/해바라기/frontend/case-export-privacy` | FE-002, BE-005 |
@@ -67,16 +77,16 @@ Organization Project Intake and Team Evolution are organization-level roles and 
 
 ```text
 PM-001
-├─ IDEA-001 ─────────────┐
-└─ BE-001                │
-   ├─ DS-001 ── DES-001 ─┤
-   ├─ BE-002 ────────────┤
-   ├─ BE-003 ────────────┤
-   └─ BE-004 ────────────┘
-                         ↓
-                       FE-001
-                         ↓ + BE-004
-                       FE-002
+├─ IDEA-001 ───────────────┐
+└─ BE-001                  │
+   ├─ DS-001 ── DES-001 ───┤
+   ├─ AUTH-001 ─ AUTHUI-001 ┤
+   ├─ BE-003 ───────────────┤
+   └─ BE-004 ───────────────┘
+                           ↓
+                         FE-001
+                           ↓ + BE-004
+                         FE-002
 
 BE-003 + BE-004 → BE-005
 FE-002 + BE-005 → FE-003
@@ -86,6 +96,40 @@ QA-001 → UA-001
 QA-001 → UB-001
 UA-001 + UB-001 → PE-001 → integration/release decision
 ```
+
+## Authentication acceptance contract
+
+### AUTH-001 Backend
+
+The Backend auth task must verify all of the following before completion:
+
+- no project-owned 꽃다발 signup/password store,
+- server-generated OAuth state and RFC 7636 PKCE S256 verifier/challenge,
+- verifier stored only in protected short-lived server state/cookie until callback,
+- exact registered redirect URI,
+- constant-time or equivalent safe state validation,
+- server-side one-time authorization-code exchange,
+- server-side `/userinfo` request,
+- no bouquet token/code/verifier in browser localStorage/sessionStorage/client bundle/logs,
+- application-owned HttpOnly/Secure production session after verified userinfo,
+- safe internal-only `returnTo`,
+- logout invalidates the Evidence Vault session without deleting the central bouquet SSO session,
+- stable 401/403/auth error contract without account/token leakage,
+- automated tests for login start, callback success, state mismatch, invalid PKCE, code reuse/failure, anonymous session, logout, and expired session.
+
+### AUTHUI-001 Frontend
+
+The Frontend auth task must verify:
+
+- distinct `checking`, `anonymous`, `redirecting`, `callback`, `authenticated`, and `error` UI states,
+- no protected-content auth flash during initial session check,
+- login goes through the project Backend/BFF into the central 꽃다발 portal; no email/password fields in Evidence Vault,
+- callback refresh/duplicate handling is safe,
+- session is rechecked after callback before protected UI appears,
+- anonymous/401 states expose a clear reauthentication path without redirect loops,
+- errors expose retry without showing code/token/verifier/provider internals,
+- auth actions are keyboard/focus accessible,
+- browser-level flow covers anonymous → 꽃다발 Portal → callback → protected app → project logout/session expiry.
 
 ## Task-specific plan rule
 
