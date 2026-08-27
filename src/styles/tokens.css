@@ -1,0 +1,42 @@
+:root {
+  --color-bg-canvas: #f7f4ea;
+  --color-bg-surface: #fffdf7;
+  --color-bg-subtle: #edf0e4;
+  --color-text-primary: #1c211c;
+  --color-text-secondary: #686b64;
+  --color-border-default: #d9d5c9;
+  --color-border-strong: #1c211c;
+  --color-brand: #244a34;
+  --color-accent-soft: #d9ef93;
+  --color-info: #3f5661;
+  --color-info-soft: #e7edef;
+  --color-success: #244a34;
+  --color-success-soft: #edf0e4;
+  --color-warning: #6f5414;
+  --color-warning-soft: #f3e5ad;
+  --color-danger: #8f3a2e;
+  --color-danger-soft: #f1d3c8;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --control-height-sm: 44px;
+  --control-height-md: 48px;
+  --focus-ring: 0 0 0 3px rgba(36, 74, 52, 0.28);
+
+  --font-ui: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, -apple-system, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-meta: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
