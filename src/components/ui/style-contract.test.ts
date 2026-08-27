@@ -41,4 +41,16 @@ describe("design system style contract", () => {
       expect(primitives).toContain(className);
     }
   });
+
+  it("lets warning and danger notices use their contrast-safe foreground colors", () => {
+    const primitives = readIfPresent("src/styles/primitives.css");
+    expect(primitives).toContain(".ev-notice__body { color: inherit;");
+    expect(primitives).toMatch(/\.ev-notice--warning\s*\{[^}]*color:\s*var\(--color-warning\)/s);
+    expect(primitives).toMatch(/\.ev-notice--danger\s*\{[^}]*color:\s*var\(--color-danger\)/s);
+  });
+
+  it("keeps a raw empty-state primary link at the minimum interactive target height", () => {
+    const primitives = readIfPresent("src/styles/primitives.css");
+    expect(primitives).toMatch(/\.ev-empty__action\s*>\s*a\s*\{[^}]*min-height:\s*var\(--control-height-sm\)/s);
+  });
 });
