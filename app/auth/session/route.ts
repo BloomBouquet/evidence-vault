@@ -28,7 +28,9 @@ export async function createSessionProbeResponse(
 ) {
   const rawToken = readCookie(request, "ev_session");
   const user = await dependencies.resolveSession(rawToken);
-  return NextResponse.json({ user });
+  const response = NextResponse.json({ user });
+  response.headers.set("cache-control", "no-store");
+  return response;
 }
 
 export function GET(request: Request) {
