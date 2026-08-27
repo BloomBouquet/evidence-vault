@@ -43,6 +43,11 @@ function setCookieHeader(response: Response) {
   return response.headers.get("set-cookie") ?? "";
 }
 
+function expectPrivacyHeaders(response: Response) {
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+}
+
 describe("createBouquetCallbackResponse", () => {
   it("verifies provider identity before creating a local project session", async () => {
     const dependencies = deps();
@@ -50,6 +55,7 @@ describe("createBouquetCallbackResponse", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://vault.example.com/vault/item-1?tab=timeline");
+    expectPrivacyHeaders(response);
     expect(dependencies.openAttempt).toHaveBeenCalledWith("sealed-attempt", config.sessionSecret);
     expect(dependencies.statesMatch).toHaveBeenCalledWith("expected-state", "expected-state");
     expect(dependencies.exchangeCode).toHaveBeenCalledWith(config, {
@@ -81,6 +87,7 @@ describe("createBouquetCallbackResponse", () => {
     const response = await createBouquetCallbackResponse(request, dependencies);
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expectPrivacyHeaders(response);
     expect(setCookieHeader(response)).toContain("ev_oauth_attempt=");
     expect(setCookieHeader(response)).toMatch(/Max-Age=0/);
     expect(dependencies.createSession).not.toHaveBeenCalled();
@@ -90,6 +97,7 @@ describe("createBouquetCallbackResponse", () => {
     const dependencies = deps({ statesMatch: vi.fn(() => false) });
     const response = await createBouquetCallbackResponse(callbackRequest(), dependencies);
     expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expectPrivacyHeaders(response);
     expect(dependencies.exchangeCode).not.toHaveBeenCalled();
     expect(dependencies.createSession).not.toHaveBeenCalled();
   });
@@ -104,6 +112,7 @@ describe("createBouquetCallbackResponse", () => {
     const response = await createBouquetCallbackResponse(callbackRequest(), dependencies);
     const visible = `${response.headers.get("location")} ${setCookieHeader(response)}`;
     expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expectPrivacyHeaders(response);
     expect(visible).not.toContain("one-time-code");
     expect(visible).not.toContain("server-only-verifier");
     expect(visible).not.toContain("provider-access-secret");
