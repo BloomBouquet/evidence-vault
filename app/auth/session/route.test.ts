@@ -16,6 +16,7 @@ describe("createSessionProbeResponse", () => {
       dependencies,
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toEqual({ user: null });
     expect(dependencies.resolveSession).toHaveBeenCalledWith(null);
   });
@@ -31,6 +32,7 @@ describe("createSessionProbeResponse", () => {
       dependencies,
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ user: { id: "user-1", displayName: "순우" } });
     expect(text).not.toContain("raw-project-session");
