@@ -138,8 +138,8 @@ Required configuration:
 Rules:
 
 - URLs must parse as HTTP(S) URLs.
-- Production application and callback URLs must use HTTPS.
-- `SESSION_SECRET` must contain at least 32 bytes of UTF-8 entropy input length as enforced by the current login-attempt module.
+- In production, `APP_BASE_URL`, `BOUQUET_BASE_URL`, and `BOUQUET_REDIRECT_URI` must use HTTPS.
+- `SESSION_SECRET` must contain at least 32 bytes of UTF-8 input length as enforced by the current login-attempt module.
 - `BOUQUET_REDIRECT_URI` must exactly equal the registered callback URL and must target `/auth/bouquet/callback`.
 - Real credentials/secrets are never committed.
 
@@ -338,7 +338,7 @@ Authenticated session returns HTTP 200 with only product-safe fields:
 
 Do not return Bouquet access token, PKCE data, application-session hash, central password data, or provider internals.
 
-This endpoint intentionally uses `user: null` rather than a redirect so the Frontend auth client can distinguish initial checking/anonymous state without redirect loops.
+This endpoint intentionally uses `user: null` rather than a redirect or 401 so the Frontend auth client can perform its initial session synchronization without redirect loops. This exception applies only to the session-introspection endpoint; protected resource APIs introduced by later tasks must still use the repository's stable authenticated `401/403` contract.
 
 ## Sign out
 
@@ -423,7 +423,7 @@ AUTH-001 must add automated coverage for at least:
 - valid environment,
 - missing required value,
 - invalid URL,
-- production non-HTTPS application/callback URL,
+- production non-HTTPS application/Bouquet/callback URL,
 - callback path mismatch,
 - short session secret.
 
