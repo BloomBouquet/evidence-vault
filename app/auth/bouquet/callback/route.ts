@@ -47,10 +47,16 @@ function clearAttemptCookie(response: NextResponse, secure: boolean) {
   });
 }
 
+function applyCallbackPrivacyHeaders(response: NextResponse) {
+  response.headers.set("cache-control", "no-store");
+  response.headers.set("referrer-policy", "no-referrer");
+  return response;
+}
+
 function failureResponse(config: AuthConfig) {
   const response = NextResponse.redirect(new URL("/?auth_error=oauth_failed", config.appBaseUrl));
   clearAttemptCookie(response, config.secureCookies);
-  return response;
+  return applyCallbackPrivacyHeaders(response);
 }
 
 export async function createBouquetCallbackResponse(
@@ -96,7 +102,7 @@ export async function createBouquetCallbackResponse(
       expires: session.expiresAt,
     });
     clearAttemptCookie(response, dependencies.config.secureCookies);
-    return response;
+    return applyCallbackPrivacyHeaders(response);
   } catch {
     return failureResponse(dependencies.config);
   }
