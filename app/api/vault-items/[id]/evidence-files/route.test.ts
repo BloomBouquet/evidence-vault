@@ -28,14 +28,29 @@ function deps(overrides: Partial<EvidenceUploadRouteDependencies> = {}): Evidenc
 }
 
 function multipartRequest(includeFile = true) {
-  const form = new FormData();
-  if (includeFile) form.set("file", new File(["evidence"], "receipt.pdf", { type: "application/pdf" }));
-  form.set("evidenceEventId", eventId);
-  return new Request("http://localhost/api/vault-items/" + vaultItemId + "/evidence-files", {
+  const request = new Request("http://localhost/api/vault-items/" + vaultItemId + "/evidence-files", {
     method: "POST",
     headers: { cookie: "ev_session=session-token" },
-    body: form,
   });
+  const bytes = new TextEncoder().encode("evidence");
+  const file = {
+    name: "receipt.pdf",
+    type: "application/pdf",
+    arrayBuffer: vi.fn(async () => bytes.slice().buffer),
+  };
+  const form = {
+    get(name: string) {
+      if (name === "file") return includeFile ? file : null;
+      if (name === "evidenceEventId") return eventId;
+      return null;
+    },
+  } as unknown as FormData;
+
+  Object.defineProperty(request, "formData", {
+    configurable: true,
+    value: vi.fn(async () => form),
+  });
+  return request;
 }
 
 describe("evidence upload route", () => {
