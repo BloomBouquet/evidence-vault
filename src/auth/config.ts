@@ -1,3 +1,5 @@
+import { APP_BASE_PATH } from "@/src/routing/app-path";
+
 export type AuthConfig = {
   appBaseUrl: URL;
   bouquetBaseUrl: URL;
@@ -6,6 +8,9 @@ export type AuthConfig = {
   sessionSecret: string;
   secureCookies: boolean;
 };
+
+const PRODUCTION_ORIGIN = "https://bloombouquet.https.gsmsv.site";
+const CALLBACK_PATH = `${APP_BASE_PATH}/auth/bouquet/callback`;
 
 function invalid(): never {
   throw new Error("auth_config_invalid");
@@ -38,7 +43,22 @@ export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig 
 
     if (Buffer.byteLength(sessionSecret, "utf8") < 32) invalid();
     if (
-      bouquetRedirectUri.pathname !== "/auth/bouquet/callback" ||
+      appBaseUrl.pathname !== `${APP_BASE_PATH}/` ||
+      appBaseUrl.search ||
+      appBaseUrl.hash
+    ) {
+      invalid();
+    }
+    if (
+      bouquetBaseUrl.pathname !== "/" ||
+      bouquetBaseUrl.search ||
+      bouquetBaseUrl.hash
+    ) {
+      invalid();
+    }
+    if (
+      bouquetRedirectUri.origin !== appBaseUrl.origin ||
+      bouquetRedirectUri.pathname !== CALLBACK_PATH ||
       bouquetRedirectUri.search ||
       bouquetRedirectUri.hash
     ) {
@@ -48,6 +68,13 @@ export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig 
     if (
       secureCookies &&
       [appBaseUrl, bouquetBaseUrl, bouquetRedirectUri].some((url) => url.protocol !== "https:")
+    ) {
+      invalid();
+    }
+
+    if (
+      secureCookies &&
+      (appBaseUrl.origin !== PRODUCTION_ORIGIN || bouquetBaseUrl.origin !== PRODUCTION_ORIGIN)
     ) {
       invalid();
     }

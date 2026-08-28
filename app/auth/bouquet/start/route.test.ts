@@ -3,10 +3,10 @@ import type { AuthConfig } from "@/src/auth/config";
 import { createLoginStartResponse } from "./route";
 
 const productionConfig: AuthConfig = {
-  appBaseUrl: new URL("https://vault.example.com"),
+  appBaseUrl: new URL("https://vault.example.com/apps/evidence-vault/"),
   bouquetBaseUrl: new URL("https://id.example.com"),
   bouquetClientId: "evidence-vault",
-  bouquetRedirectUri: new URL("https://vault.example.com/auth/bouquet/callback"),
+  bouquetRedirectUri: new URL("https://vault.example.com/apps/evidence-vault/auth/bouquet/callback"),
   sessionSecret: "01234567890123456789012345678901",
   secureCookies: true,
 };
@@ -28,7 +28,7 @@ describe("createLoginStartResponse", () => {
   it("redirects to the central portal and stores the verifier only in the sealed attempt", () => {
     const deps = dependencies();
     const response = createLoginStartResponse(
-      new Request("https://vault.example.com/auth/bouquet/start?returnTo=%2Fvault%2Fitem-1%3Ftab%3Dtimeline"),
+      new Request("https://vault.example.com/apps/evidence-vault/auth/bouquet/start?returnTo=%2Fvault%2Fitem-1%3Ftab%3Dtimeline"),
       deps,
     );
 
@@ -40,7 +40,9 @@ describe("createLoginStartResponse", () => {
     expect(url.pathname).toBe("/bloom/");
     expect(url.searchParams.get("mode")).toBe("auth");
     expect(url.searchParams.get("client_id")).toBe("evidence-vault");
-    expect(url.searchParams.get("redirect_uri")).toBe("https://vault.example.com/auth/bouquet/callback");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://vault.example.com/apps/evidence-vault/auth/bouquet/callback",
+    );
     expect(url.searchParams.get("state")).toBe("state-value");
     expect(url.searchParams.get("code_challenge")).toBe("challenge-value");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
@@ -61,7 +63,7 @@ describe("createLoginStartResponse", () => {
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/Secure/i);
     expect(cookie).toMatch(/SameSite=Lax/i);
-    expect(cookie).toContain("Path=/auth/bouquet");
+    expect(cookie).toContain("Path=/apps/evidence-vault/auth/bouquet");
     expect(cookie).toContain("Max-Age=600");
   });
 
@@ -72,7 +74,7 @@ describe("createLoginStartResponse", () => {
   ])("falls back to dashboard for unsafe returnTo %s", (returnTo) => {
     const deps = dependencies();
     createLoginStartResponse(
-      new Request(`https://vault.example.com/auth/bouquet/start?returnTo=${encodeURIComponent(returnTo)}`),
+      new Request(`https://vault.example.com/apps/evidence-vault/auth/bouquet/start?returnTo=${encodeURIComponent(returnTo)}`),
       deps,
     );
     expect(deps.sealAttempt).toHaveBeenCalledWith(

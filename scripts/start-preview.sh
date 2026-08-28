@@ -4,6 +4,9 @@ set -euo pipefail
 APP_DIR="/home/ubuntu/evidence-vault"
 ENV_FILE="/home/ubuntu/evidence-vault/.env.production"
 PORT="${PORT:-3011}"
+PUBLIC_URL="https://bloombouquet.https.gsmsv.site/apps/evidence-vault/"
+OAUTH_CALLBACK="https://bloombouquet.https.gsmsv.site/apps/evidence-vault/auth/bouquet/callback"
+PROVIDER_URL="https://bloombouquet.https.gsmsv.site"
 
 test -f "$ENV_FILE" || { echo "preview environment missing" >&2; exit 1; }
 
@@ -20,9 +23,9 @@ set +a
 
 [ "${NODE_ENV:-production}" = "production" ] || { echo "NODE_ENV must be production" >&2; exit 1; }
 [ "$PORT" = "3011" ] || { echo "preview port must be 3011" >&2; exit 1; }
-[ "$APP_BASE_URL" = "https://evidence-vault.https.gsmsv.site" ] || { echo "APP_BASE_URL does not match preview contract" >&2; exit 1; }
-[ "$BOUQUET_BASE_URL" = "https://bloombouquet.https.gsmsv.site" ] || { echo "BOUQUET_BASE_URL does not match preview contract" >&2; exit 1; }
-[ "$BOUQUET_REDIRECT_URI" = "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback" ] || { echo "BOUQUET_REDIRECT_URI does not match preview contract" >&2; exit 1; }
+[ "$APP_BASE_URL" = "$PUBLIC_URL" ] || { echo "APP_BASE_URL does not match preview contract" >&2; exit 1; }
+[ "$BOUQUET_BASE_URL" = "$PROVIDER_URL" ] || { echo "BOUQUET_BASE_URL does not match preview contract" >&2; exit 1; }
+[ "$BOUQUET_REDIRECT_URI" = "$OAUTH_CALLBACK" ] || { echo "BOUQUET_REDIRECT_URI does not match preview contract" >&2; exit 1; }
 [ "${#SESSION_SECRET}" -ge 32 ] || { echo "SESSION_SECRET is too short" >&2; exit 1; }
 
 cd "$APP_DIR"

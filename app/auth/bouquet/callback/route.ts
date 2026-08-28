@@ -5,6 +5,7 @@ import { openLoginAttempt, sanitizeReturnTo } from "@/src/auth/login-attempt";
 import { statesMatch } from "@/src/auth/pkce";
 import { createProjectSession } from "@/src/auth/project-session";
 import { upsertActiveUserByIdentity } from "@/src/repositories/user-repository";
+import { APP_BASE_PATH, appUrl } from "@/src/routing/app-path";
 
 export type CallbackDependencies = {
   config: AuthConfig;
@@ -42,7 +43,7 @@ function clearAttemptCookie(response: NextResponse, secure: boolean) {
     httpOnly: true,
     secure,
     sameSite: "lax",
-    path: "/auth/bouquet",
+    path: `${APP_BASE_PATH}/auth/bouquet`,
     maxAge: 0,
   });
 }
@@ -54,7 +55,7 @@ function applyCallbackPrivacyHeaders(response: NextResponse) {
 }
 
 function failureResponse(config: AuthConfig) {
-  const response = NextResponse.redirect(new URL("/?auth_error=oauth_failed", config.appBaseUrl));
+  const response = NextResponse.redirect(appUrl(config.appBaseUrl, "/?auth_error=oauth_failed"));
   clearAttemptCookie(response, config.secureCookies);
   return applyCallbackPrivacyHeaders(response);
 }
@@ -86,7 +87,7 @@ export async function createBouquetCallbackResponse(
     const session = await dependencies.createSession(user.id);
 
     const returnTo = sanitizeReturnTo(attempt.returnTo);
-    const response = NextResponse.redirect(new URL(returnTo, dependencies.config.appBaseUrl));
+    const response = NextResponse.redirect(appUrl(dependencies.config.appBaseUrl, returnTo));
     const maxAge = Math.max(
       0,
       Math.floor((session.expiresAt.getTime() - dependencies.now().getTime()) / 1000),
@@ -97,7 +98,7 @@ export async function createBouquetCallbackResponse(
       httpOnly: true,
       secure: dependencies.config.secureCookies,
       sameSite: "lax",
-      path: "/",
+      path: APP_BASE_PATH,
       maxAge,
       expires: session.expiresAt,
     });
