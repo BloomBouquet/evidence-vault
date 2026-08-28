@@ -64,6 +64,21 @@ describe("evidence upload route", () => {
     expect(fake.uploadEvidence).not.toHaveBeenCalled();
   });
 
+  it("rejects an oversized multipart body before parsing it", async () => {
+    const request = multipartRequest();
+    request.headers.set("content-length", String(21 * 1024 * 1024 + 1));
+    const formDataSpy = request.formData as unknown as ReturnType<typeof vi.fn>;
+    const fake = deps();
+
+    const response = await createEvidenceUploadResponse(request, vaultItemId, fake);
+
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ error: "file_too_large" });
+    expect(formDataSpy).not.toHaveBeenCalled();
+    expect(fake.uploadEvidence).not.toHaveBeenCalled();
+  });
+
   it("rejects multipart requests without a file", async () => {
     const fake = deps();
     const response = await createEvidenceUploadResponse(multipartRequest(false), vaultItemId, fake);
