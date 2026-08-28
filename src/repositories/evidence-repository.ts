@@ -7,6 +7,7 @@ export type EvidenceFileRow = typeof evidenceFiles.$inferSelect;
 export type NewEvidenceFile = typeof evidenceFiles.$inferInsert;
 
 export type EvidenceFileStore = {
+  getOwned(ownerUserId: string, id: string): Promise<EvidenceFileRow | null>;
   getActive(ownerUserId: string, id: string): Promise<EvidenceFileRow | null>;
   create(input: NewEvidenceFile): Promise<EvidenceFileRow>;
   markDeleted(
@@ -17,6 +18,20 @@ export type EvidenceFileStore = {
 };
 
 const drizzleEvidenceFileStore: EvidenceFileStore = {
+  async getOwned(ownerUserId, id) {
+    const [row] = await getDb()
+      .select()
+      .from(evidenceFiles)
+      .where(
+        and(
+          eq(evidenceFiles.id, id),
+          eq(evidenceFiles.userId, ownerUserId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
   async getActive(ownerUserId, id) {
     const [row] = await getDb()
       .select()
@@ -54,6 +69,13 @@ const drizzleEvidenceFileStore: EvidenceFileStore = {
   },
 };
 
+export function getOwnedEvidenceFileWithStore(
+  store: EvidenceFileStore,
+  { ownerUserId, id }: OwnedResourceKey,
+) {
+  return store.getOwned(ownerUserId, id);
+}
+
 export function getEvidenceFileWithStore(
   store: EvidenceFileStore,
   { ownerUserId, id }: OwnedResourceKey,
@@ -73,6 +95,10 @@ export function markEvidenceFileDeletedWithStore(
   input: OwnedResourceKey & { deletedAt: Date },
 ) {
   return store.markDeleted(input.ownerUserId, input.id, input.deletedAt);
+}
+
+export function getOwnedEvidenceFile(input: OwnedResourceKey) {
+  return getOwnedEvidenceFileWithStore(drizzleEvidenceFileStore, input);
 }
 
 export function getEvidenceFile(input: OwnedResourceKey) {

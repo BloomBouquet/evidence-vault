@@ -1,5 +1,4 @@
 import { buildEvidenceStorageKey } from "@/src/storage/key";
-import { StorageOperationError } from "@/src/storage/errors";
 import type { EvidenceStorage } from "@/src/storage/types";
 import { sha256Hex, validateEvidenceUpload } from "@/src/storage/validation";
 
@@ -52,7 +51,7 @@ export type EvidenceFileServiceDeps = {
   createDeletionJob(input: {
     id: string;
     userId: string;
-    kind: "evidence_object";
+    kind: "evidence_file_object";
     targetId: string;
   }): Promise<unknown>;
   idFactory(): string;
@@ -171,7 +170,7 @@ export async function uploadEvidenceFile(
       await deps.createDeletionJob({
         id: deps.jobIdFactory(),
         userId: input.ownerUserId,
-        kind: "evidence_object",
+        kind: "evidence_file_object",
         targetId: id,
       });
       throw new EvidenceServiceError("storage_unavailable");

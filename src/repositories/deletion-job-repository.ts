@@ -1,11 +1,13 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/src/db/client";
 import { deletionJobs } from "@/src/db/schema";
 
 export type DeletionJobRow = typeof deletionJobs.$inferSelect;
+export type DeletionJobTarget = Pick<DeletionJobRow, "userId" | "kind" | "targetId">;
 export type DeletionJobStore = {
   create(input: typeof deletionJobs.$inferInsert): Promise<DeletionJobRow>;
   get(id: string): Promise<DeletionJobRow | null>;
+  findByTarget(input: DeletionJobTarget): Promise<DeletionJobRow | null>;
   update(
     id: string,
     patch: Partial<Pick<DeletionJobRow, "status" | "attempts" | "lastErrorCode">>,
@@ -28,6 +30,21 @@ const drizzleDeletionJobStore: DeletionJobStore = {
     return row ?? null;
   },
 
+  async findByTarget({ userId, kind, targetId }) {
+    const [row] = await getDb()
+      .select()
+      .from(deletionJobs)
+      .where(
+        and(
+          eq(deletionJobs.userId, userId),
+          eq(deletionJobs.kind, kind),
+          eq(deletionJobs.targetId, targetId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
   async update(id, patch) {
     const [row] = await getDb()
       .update(deletionJobs)
@@ -38,29 +55,46 @@ const drizzleDeletionJobStore: DeletionJobStore = {
   },
 };
 
+export async function ensureDeletionJobWithStore(
+  store: DeletionJobStore,
+  input: Pick<DeletionJobRow, "id" | "userId" | "kind" | "targetId">,
+) {
+  const target = { userId: input.userId, kind: input.kind, targetId: input.targetId };
+  const existing = await store.findByTarget(target);
+  if (existing) return existing;
+
+  try {
+    return await store.create({
+      ...input,
+      status: "queued",
+      attempts: 0,
+      lastErrorCode: null,
+    });
+  } catch (error) {
+    const raced = await store.findByTarget(target);
+    if (raced) return raced;
+    throw error;
+  }
+}
+
 export function createDeletionJobWithStore(
   store: DeletionJobStore,
   input: Pick<DeletionJobRow, "id" | "userId" | "kind" | "targetId">,
 ) {
-  return store.create({
-    ...input,
-    status: "queued",
-    attempts: 0,
-    lastErrorCode: null,
-  });
+  return ensureDeletionJobWithStore(store, input);
 }
 
 export function getDeletionJobWithStore(store: DeletionJobStore, id: string) {
   return store.get(id);
 }
 
-export function markDeletionJobRetryableWithStore(
+export function markDeletionJobQueuedWithStore(
   store: DeletionJobStore,
   id: string,
   attempts: number,
   lastErrorCode: string,
 ) {
-  return store.update(id, { status: "retryable", attempts, lastErrorCode });
+  return store.update(id, { status: "queued", attempts, lastErrorCode });
 }
 
 export function markDeletionJobCompletedWithStore(
@@ -80,22 +114,28 @@ export function markDeletionJobBlockedWithStore(
   return store.update(id, { status: "blocked", attempts, lastErrorCode });
 }
 
+export function ensureDeletionJob(
+  input: Pick<DeletionJobRow, "id" | "userId" | "kind" | "targetId">,
+) {
+  return ensureDeletionJobWithStore(drizzleDeletionJobStore, input);
+}
+
 export function createDeletionJob(
   input: Pick<DeletionJobRow, "id" | "userId" | "kind" | "targetId">,
 ) {
-  return createDeletionJobWithStore(drizzleDeletionJobStore, input);
+  return ensureDeletionJob(input);
 }
 
 export function getDeletionJob(id: string) {
   return getDeletionJobWithStore(drizzleDeletionJobStore, id);
 }
 
-export function markDeletionJobRetryable(
+export function markDeletionJobQueued(
   id: string,
   attempts: number,
   lastErrorCode: string,
 ) {
-  return markDeletionJobRetryableWithStore(
+  return markDeletionJobQueuedWithStore(
     drizzleDeletionJobStore,
     id,
     attempts,

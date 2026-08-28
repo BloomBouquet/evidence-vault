@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createDeletionJobWithStore,
+  ensureDeletionJobWithStore,
   getDeletionJobWithStore,
   markDeletionJobBlockedWithStore,
   markDeletionJobCompletedWithStore,
-  markDeletionJobRetryableWithStore,
+  markDeletionJobQueuedWithStore,
   type DeletionJobStore,
 } from "./deletion-job-repository";
 
 const baseJob = {
   id: "job-1",
   userId: "user-a",
-  kind: "evidence_object",
+  kind: "evidence_file_object",
   targetId: "file-1",
   status: "queued",
   attempts: 0,
@@ -20,7 +21,7 @@ const baseJob = {
   updatedAt: new Date("2026-08-28T00:00:00.000Z"),
 };
 
-function store(): DeletionJobStore {
+function store(existing = false): DeletionJobStore {
   let current = { ...baseJob };
   return {
     create: vi.fn(async (input) => {
@@ -28,6 +29,11 @@ function store(): DeletionJobStore {
       return current;
     }),
     get: vi.fn(async (id) => (id === current.id ? current : null)),
+    findByTarget: vi.fn(async ({ userId, kind, targetId }) =>
+      existing && userId === current.userId && kind === current.kind && targetId === current.targetId
+        ? current
+        : null,
+    ),
     update: vi.fn(async (id, patch) => {
       if (id !== current.id) return null;
       current = { ...current, ...patch };
@@ -37,18 +43,18 @@ function store(): DeletionJobStore {
 }
 
 describe("deletion job repository state", () => {
-  it("creates a queued evidence-object job with owner and target", async () => {
+  it("creates a queued evidence-file-object job with owner and target", async () => {
     const fake = store();
     await createDeletionJobWithStore(fake, {
       id: "job-1",
       userId: "user-a",
-      kind: "evidence_object",
+      kind: "evidence_file_object",
       targetId: "file-1",
     });
     expect(fake.create).toHaveBeenCalledWith({
       id: "job-1",
       userId: "user-a",
-      kind: "evidence_object",
+      kind: "evidence_file_object",
       targetId: "file-1",
       status: "queued",
       attempts: 0,
@@ -56,10 +62,21 @@ describe("deletion job repository state", () => {
     });
   });
 
-  it("records retry attempts and normalized error codes", async () => {
+  it("reuses an existing owner-kind-target job instead of creating a duplicate", async () => {
+    const fake = store(true);
+    await expect(ensureDeletionJobWithStore(fake, {
+      id: "job-new",
+      userId: "user-a",
+      kind: "evidence_file_object",
+      targetId: "file-1",
+    })).resolves.toEqual(baseJob);
+    expect(fake.create).not.toHaveBeenCalled();
+  });
+
+  it("records transient retry attempts as queued with normalized error codes", async () => {
     const fake = store();
-    await expect(markDeletionJobRetryableWithStore(fake, "job-1", 2, "storage_transient")).resolves.toMatchObject({
-      status: "retryable",
+    await expect(markDeletionJobQueuedWithStore(fake, "job-1", 2, "storage_transient")).resolves.toMatchObject({
+      status: "queued",
       attempts: 2,
       lastErrorCode: "storage_transient",
     });
