@@ -53,12 +53,14 @@ PM-002 therefore inserts two explicit tasks:
 
 The replan does not invalidate completed AUTH/BE-003/BE-004 evidence. It adds the missing prerequisite before product-data UI work.
 
+PM-002 also corrects the recorded AUTHUI-001 writer branch to the actual merged PR #7 head, `agent/해바라기/frontend/auth-ui`.
+
 ## Shared 꽃다발 auth injection
 
 Evidence Vault is `needsAuth=true`, so the upgraded Luna auth policy requires two independent standard tasks:
 
 - Backend `bouquet-auth-server` task.
-- Frontend `bouquet-auth-client` task.
+- Frontend `auth-ui` task.
 
 The Frontend auth task directly depends on the Backend auth contract. Neither task may be folded into an unrelated dashboard or domain task.
 
@@ -72,7 +74,7 @@ The Frontend auth task directly depends on the Backend auth contract. Neither ta
 | DS-001 | Design System | Product design tokens/primitives | `agent/해바라기/design-system/foundation` | BE-001 |
 | DES-001 | Designer | Core user-flow specification | `agent/해바라기/designer/core-flows` | IDEA-001, DS-001 |
 | AUTH-001 | Backend | 꽃다발 SSO server client: OAuth state/PKCE/callback/token/userinfo/app session | `agent/해바라기/backend/bouquet-auth-server` | BE-001 |
-| AUTHUI-001 | Frontend | 꽃다발 SSO client states/login/callback/logout/401 resync | `agent/해바라기/frontend/bouquet-auth-client` | AUTH-001, DES-001 |
+| AUTHUI-001 | Frontend | 꽃다발 SSO client states/login/callback/logout/401 resync | `agent/해바라기/frontend/auth-ui` | AUTH-001, DES-001 |
 | BE-003 | Backend | Vault/Deadline/Event owner-scoped API | `agent/해바라기/backend/vault-domain-api` | BE-001 |
 | BE-004 | Backend | Private evidence storage + integrity + deletion primitives | `agent/해바라기/backend/private-evidence-storage` | BE-001 |
 | PM-002 | PM | Insert onboarding prerequisite discovered after auth/domain integration | `agent/해바라기/pm/onboarding-prerequisite-replan` | DES-001, AUTHUI-001, BE-003, BE-004 |
