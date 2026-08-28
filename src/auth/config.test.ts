@@ -20,6 +20,24 @@ describe("getAuthConfig", () => {
     expect(config.secureCookies).toBe(false);
   });
 
+  it("accepts the approved integration-preview production URLs", () => {
+    const config = getAuthConfig({
+      ...validEnv,
+      NODE_ENV: "production",
+      APP_BASE_URL: "https://evidence-vault.https.gsmsv.site",
+      BOUQUET_BASE_URL: "https://playground.https.gsmsv.site",
+      BOUQUET_CLIENT_ID: "evidence-vault-preview-bootstrap",
+      BOUQUET_REDIRECT_URI: "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback",
+    } as NodeJS.ProcessEnv);
+
+    expect(config.appBaseUrl.toString()).toBe("https://evidence-vault.https.gsmsv.site/");
+    expect(config.bouquetBaseUrl.toString()).toBe("https://playground.https.gsmsv.site/");
+    expect(config.bouquetRedirectUri.toString()).toBe(
+      "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback",
+    );
+    expect(config.secureCookies).toBe(true);
+  });
+
   it.each([
     ["missing client id", { ...validEnv, BOUQUET_CLIENT_ID: "" }],
     ["invalid app url", { ...validEnv, APP_BASE_URL: "not-a-url" }],
