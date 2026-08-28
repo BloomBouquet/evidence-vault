@@ -15,6 +15,13 @@
       "when": 1787890200000,
       "tag": "0001_deletion_job_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787892000000,
+      "tag": "0002_optional_merchant",
+      "breakpoints": true
     }
   ]
 }

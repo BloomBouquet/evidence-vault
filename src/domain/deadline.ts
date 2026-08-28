@@ -43,4 +43,12 @@ export const createDeadlineSchema = z.object({
   sourceNote: z.string().trim().max(500).optional(),
 });
 
+export const updateDeadlineSchema = z.object({
+  type: z.enum(DEADLINE_TYPES).optional(),
+  dueDate: dateOnlySchema.optional(),
+  sourceType: z.enum(DEADLINE_SOURCE_TYPES).optional(),
+  sourceNote: z.string().trim().max(500).nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0, "empty_update");
+
 export type CreateDeadlineInput = z.infer<typeof createDeadlineSchema>;
+export type UpdateDeadlineInput = z.infer<typeof updateDeadlineSchema>;

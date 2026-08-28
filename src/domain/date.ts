@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 86_400_000;
 
 export function dateOnlyToUtcDay(value: string): number {
   if (!DATE_ONLY_RE.test(value)) throw new Error("invalid_date_only");
@@ -14,7 +15,13 @@ export function dateOnlyToUtcDay(value: string): number {
   ) {
     throw new Error("invalid_date_only");
   }
-  return Math.floor(ms / 86_400_000);
+  return Math.floor(ms / DAY_MS);
+}
+
+export function addDays(value: string, offset: number): string {
+  if (!Number.isInteger(offset)) throw new Error("invalid_day_offset");
+  const utcDay = dateOnlyToUtcDay(value) + offset;
+  return new Date(utcDay * DAY_MS).toISOString().slice(0, 10);
 }
 
 export const dateOnlySchema = z.string().refine((value) => {

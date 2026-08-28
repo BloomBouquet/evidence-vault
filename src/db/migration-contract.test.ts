@@ -34,4 +34,13 @@ describe("PostgreSQL migration contract", () => {
     const journal = readFileSync("drizzle/meta/_journal.json", "utf8");
     expect(journal).toContain("0001_deletion_job_idempotency");
   });
+
+  it("ships the nullable merchant migration after existing develop migrations", () => {
+    expect(existsSync("drizzle/0002_optional_merchant.sql")).toBe(true);
+    const sql = readFileSync("drizzle/0002_optional_merchant.sql", "utf8");
+    expect(sql).toContain('ALTER COLUMN "merchant_name" DROP NOT NULL');
+
+    const journal = readFileSync("drizzle/meta/_journal.json", "utf8");
+    expect(journal).toContain("0002_optional_merchant");
+  });
 });
