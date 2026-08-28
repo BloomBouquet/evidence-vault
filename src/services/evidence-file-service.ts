@@ -68,6 +68,35 @@ export type UploadEvidenceFileInput = {
   bytes: Uint8Array;
 };
 
+export type EvidenceDownloadResult =
+  | {
+      kind: "bytes";
+      bytes: Uint8Array;
+      mimeType: string;
+      filename: string;
+    }
+  | {
+      kind: "redirect";
+      url: string;
+    };
+
+export type EvidenceDownloadServiceDeps = {
+  getEvidence(input: {
+    ownerUserId: string;
+    id: string;
+  }): Promise<{
+    storageKey: string;
+    originalFilename: string;
+    mimeType: string;
+  } | null>;
+  storage: EvidenceStorage;
+};
+
+export type GetEvidenceDownloadInput = {
+  ownerUserId: string;
+  evidenceFileId: string;
+};
+
 function normalizeValidationError(error: unknown): never {
   const message = error instanceof Error ? error.message : "invalid_request";
   if (message === "unsupported_file_type") {
@@ -116,10 +145,7 @@ export async function uploadEvidenceFile(
       bytes: input.bytes,
       mimeType: validated.mimeType,
     });
-  } catch (error) {
-    if (error instanceof StorageOperationError) {
-      throw new EvidenceServiceError("storage_unavailable");
-    }
+  } catch {
     throw new EvidenceServiceError("storage_unavailable");
   }
 
@@ -162,5 +188,37 @@ export async function uploadEvidenceFile(
     byteSize: validated.byteSize,
     sha256,
     redactionState: "unreviewed",
+  };
+}
+
+export async function getEvidenceDownload(
+  input: GetEvidenceDownloadInput,
+  deps: EvidenceDownloadServiceDeps,
+): Promise<EvidenceDownloadResult> {
+  const evidence = await deps.getEvidence({
+    ownerUserId: input.ownerUserId,
+    id: input.evidenceFileId,
+  });
+  if (!evidence) throw new EvidenceServiceError("not_found");
+
+  let target: Awaited<ReturnType<EvidenceStorage["getDownloadTarget"]>>;
+  try {
+    target = await deps.storage.getDownloadTarget({
+      storageKey: evidence.storageKey,
+      expiresInSeconds: 300,
+    });
+  } catch {
+    throw new EvidenceServiceError("storage_unavailable");
+  }
+
+  if (target.kind === "redirect") {
+    return { kind: "redirect", url: target.url };
+  }
+
+  return {
+    kind: "bytes",
+    bytes: target.bytes,
+    mimeType: evidence.mimeType,
+    filename: evidence.originalFilename,
   };
 }
