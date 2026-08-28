@@ -18,6 +18,8 @@ describe("integration preview deployment workflow", () => {
     expect(yaml).toContain("scripts/deploy-preview.sh");
     expect(yaml).toContain("github.event_name == 'pull_request'");
     expect(yaml).toContain("github.event_name == 'push'");
+    expect(yaml).toContain("appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262");
+    expect(yaml).not.toContain("appleboy/ssh-action@v1.0.3");
     expect(yaml).not.toContain("pm2 delete all");
     expect(yaml).not.toContain("git push origin main");
 
