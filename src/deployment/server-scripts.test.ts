@@ -11,7 +11,7 @@ describe("integration preview server scripts", () => {
     expect(start).not.toContain("0.0.0.0");
   });
 
-  it("deploys an exact develop SHA with migration, health, rollback, and provider gates", () => {
+  it("deploys an exact develop SHA with migration, health, rollback, provider, and root PM2 gates", () => {
     const deploy = readFileSync("scripts/deploy-preview.sh", "utf8");
 
     expect(deploy).toContain("git merge-base --is-ancestor");
@@ -24,6 +24,13 @@ describe("integration preview server scripts", () => {
     expect(deploy).toContain("PREVIOUS_SHA");
     expect(deploy).toContain("https://bloombouquet.https.gsmsv.site");
     expect(deploy).not.toContain("https://playground.https.gsmsv.site");
+    expect(deploy).toContain('PM2_BIN="$(command -v pm2)"');
+    expect(deploy).toContain('sudo -n "$PM2_BIN" "$@"');
+    expect(deploy).toContain("sudo -n ss -ltnp");
+    expect(deploy).toContain('root_pm2 describe "$PROCESS_NAME"');
+    expect(deploy).toContain('root_pm2 restart "$PROCESS_NAME"');
+    expect(deploy).toContain("root_pm2 start scripts/start-preview.sh");
+    expect(deploy).toContain("root_pm2 save");
     expect(deploy).not.toMatch(/cat\s+[^\n]*\.env\.production/);
     expect(deploy).not.toContain("pm2 delete all");
     expect(deploy).not.toMatch(/drizzle[^\n]*(down|rollback)/i);
