@@ -81,17 +81,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Require authorized SSH secret
+      - name: Detect authorized SSH secret
+        id: ssh-secret
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         shell: bash
         run: |
-          if [[ -z "$SSH_PASSWORD" ]]; then
-            echo "Evidence Vault preview probe blocked: SSH_PASSWORD is unavailable to this repository." >&2
-            exit 1
+          if [[ -n "$SSH_PASSWORD" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "PROBE_SSH=available"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "PROBE_SSH=unavailable"
           fi
 
+      - name: Report blocked read-only probe
+        if: ${{ steps.ssh-secret.outputs.available != 'true' }}
+        run: echo "Evidence Vault preview probe blocked because SSH_PASSWORD is unavailable to this repository; no server mutation was attempted."
+
       - name: Probe preview infrastructure read-only
+        if: ${{ steps.ssh-secret.outputs.available == 'true' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ssh.gsmsv.site
