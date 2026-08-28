@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/src/components/ui/button";
+import { appPath } from "@/src/routing/app-path";
 import { useAuthSession } from "./auth-session-provider";
 
-const LOGIN_HREF = "/auth/bouquet/start?returnTo=/dashboard";
+const LOGIN_HREF = appPath("/auth/bouquet/start?returnTo=/dashboard");
 
 export function AuthEntryAction({ placement }: { placement: "nav" | "hero" }) {
   const session = useAuthSession();
@@ -29,7 +30,7 @@ export function AuthEntryAction({ placement }: { placement: "nav" | "hero" }) {
 
   if (session.status === "authenticated") {
     return (
-      <a className={className} href="/dashboard">
+      <a className={className} href={appPath("/dashboard")}>
         {placement === "nav" ? "증빙함 열기" : "내 증빙함 열기"}
         {placement === "hero" ? <span aria-hidden="true"> ↗</span> : null}
       </a>
