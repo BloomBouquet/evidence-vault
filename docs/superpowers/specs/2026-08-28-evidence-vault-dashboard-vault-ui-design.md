@@ -61,11 +61,29 @@ No separate edit route is required in the MVP. Vault detail supports a deliberat
 
 FE-001 does not implement `/case/*`, upload/download, or full Evidence Event timeline interactions; those remain BE-005/FE-002/FE-003 responsibilities.
 
+## Shared Seoul date boundary
+
+The existing dashboard API currently owns a private `Asia/Seoul` server-date helper. FE-001 needs the same day boundary for direct Server Component projection reads and relative-date rendering.
+
+Extract one server-safe utility, consumed by both the API route and product pages, equivalent to:
+
+```ts
+serverDateOnly(now?: Date): string
+```
+
+It returns `YYYY-MM-DD` for `Asia/Seoul`. Do not maintain two independent timezone implementations.
+
+Relative date text uses existing date-only arithmetic so daylight-saving/local runtime timezone cannot change `D-`/`D+` results.
+
 ## Dashboard
 
 ### Server read
 
-`/dashboard` calls the existing owner-scoped dashboard projection directly on the server using the Seoul date boundary already defined by the backend contract.
+`/dashboard` calls the existing owner-scoped dashboard projection directly on the server with:
+
+```ts
+getDashboardProjection({ ownerUserId: user.id, today: serverDateOnly() })
+```
 
 The UI renders only data returned for the current user.
 
@@ -82,19 +100,28 @@ The Designer contract includes `분쟁 준비 중` when applicable, but FE-001 d
 Each row displays:
 
 - neutral relative date text (`D-3`, `D-DAY`, `D+2`),
-- source-labelled date name,
+- backend `deadlineLabel(type)` text,
 - related VaultItem title,
 - merchant/service name only when present,
-- actual date.
+- actual date,
+- source label.
 
-Wording must make provenance explicit. Use copy patterns such as:
+Source labels are fixed UI mappings of the existing backend enum:
 
-- `반품 가능일로 기록한 날짜`,
-- `직접 기록한 날짜`,
-- `판매처 안내를 보고 기록한 날짜`,
-- `일반 참고자료를 보고 기록한 날짜`.
+- `user_entered` → `직접 기록`,
+- `merchant_provided` → `판매처 안내를 보고 기록`,
+- `general_reference` → `일반 참고자료를 보고 기록`.
 
-Do not render `법정 기한`, `환불 마감`, `법적으로 보장` unless the underlying future feature has separately approved authoritative-source semantics.
+Deadline type display uses the existing backend/domain labels:
+
+- `return_window` → `반품 가능일로 기록한 날짜`,
+- `renewal` → `갱신일로 기록한 날짜`,
+- `warranty_expiry` → `보증 종료일로 기록한 날짜`,
+- `contract_end` → `약정 종료일로 기록한 날짜`,
+- `refund_expected` → `환불 예정일로 기록한 날짜`,
+- `custom` → `중요 날짜로 기록한 날짜`.
+
+Do not render `법정 기한`, `법적으로 보장`, or silently change a recorded date into a legal conclusion.
 
 Color/tone may reinforce urgency but text must remain meaningful without color.
 
@@ -131,7 +158,7 @@ If there are VaultItems but no deadlines/events, those sections use compact hone
 
 ### Dashboard failure
 
-Server read failure renders a calm page-level Notice/recovery action without leaking stack/SQL/session details. The navigation shell may remain, but protected user data from a previous request/session must not be cached/rendered as fallback.
+Route-level server failure uses a scoped `error.tsx` recovery surface with a retry action. Copy stays neutral and never exposes stack/SQL/session details. Protected user data from a previous request/session must not be cached/rendered as fallback.
 
 ## VaultItem create page
 
@@ -165,7 +192,7 @@ Do not add a medical/health category.
 
 ### Amount handling
 
-Present KRW amount as an integer-only optional input. Empty means absent; negative/decimal/non-numeric input is invalid. Avoid locale-formatted text being submitted without deterministic normalization.
+Present KRW amount as an integer-only optional input. Empty means absent; negative/decimal/non-numeric input is invalid. The form normalizes a valid digit-only string to a JavaScript integer before POST and rejects values above the backend maximum rather than silently rounding.
 
 ### Save flow
 
@@ -192,16 +219,16 @@ Warn on navigation only when the user has made meaningful changes from the initi
 - owner-scoped VaultItem,
 - owner-scoped Deadline list.
 
-Cross-user/missing VaultItem renders the same `not found` surface. The UI must not distinguish another user's resource from a nonexistent one.
+If the owner-scoped repository returns no VaultItem, call the single Next.js not-found path. Cross-user and nonexistent IDs therefore render the same surface.
 
 ### Information hierarchy
 
 1. title/context header,
 2. core VaultItem facts,
 3. `기록한 날짜`,
-4. clear boundary where FE-002 will later provide the full evidence timeline/file workflow.
+4. a neutral document boundary for future evidence timeline/file content.
 
-FE-001 must not render fake timeline entries or fake evidence counts while FE-002 is absent.
+FE-001 does not render fake timeline entries, fake evidence counts, or a “coming soon” claim as user data. FE-002 later replaces/extends the evidence-workflow area with real data/actions.
 
 ### Header/core facts
 
@@ -256,24 +283,25 @@ FE-001 owns the visible `기록한 날짜` CRUD because no later task owns Deadl
 
 Each row shows:
 
-- date type label,
+- `deadlineLabel(type)`,
 - actual date,
 - relative date when useful,
-- source type label,
+- source label,
 - optional source note,
 - edit/delete actions.
 
-### Create/update fields
+### Create defaults and fields
 
-Consume backend Deadline enum values; user-facing labels must remain neutral. Required server fields are:
+New Deadline form defaults to the existing neutral values:
 
-- type,
-- due date,
-- source type.
+- `type = custom`,
+- `sourceType = user_entered`.
 
-Source note is optional.
+The user may change either through labelled selects.
 
-The UI must not auto-fill a legal deadline. Defaults may preselect a neutral custom/user-entered type only if the backend enum supports it; otherwise the user explicitly chooses.
+Type options use exactly the six existing `DEADLINE_TYPES`; source options use exactly the three existing `DEADLINE_SOURCE_TYPES`. Due date is required. Source note is optional.
+
+The UI never computes or auto-fills a legal deadline from purchase date/category.
 
 ### Delete
 
@@ -293,7 +321,7 @@ After success, refresh server-rendered detail. Cross-user/missing nested resourc
 
 Server-rendered initial reads reduce client loading states, but client transitions/mutations still need explicit state.
 
-Use route-level `loading.tsx` where meaningful for dashboard/detail navigation and existing `LoadingState` primitives for client mutations.
+Use route-level `loading.tsx` for dashboard/detail navigation and existing `LoadingState` primitives for client mutations.
 
 Do not cache authenticated evidence data for cross-session reuse. Protected pages remain dynamic/no-store according to current server/auth behavior.
 
@@ -307,7 +335,8 @@ Prefer small focused units such as:
 - `DeadlineList`,
 - `DeadlineForm`,
 - archive confirmation,
-- field-error mapper for API validation issues.
+- field-error mapper for API validation issues,
+- enum-label helpers without duplicated domain semantics.
 
 Do not create one monolithic dashboard/client file containing fetch, forms, modals, formatting, and all sections.
 
@@ -354,18 +383,18 @@ Required automated coverage:
 
 1. product pages require `requireProductUser`/equivalent completed-onboarding gate,
 2. dashboard renders honest owner projection order,
-3. dashboard full/section empty states,
-4. no fake KPI/readiness/legal-risk/probability copy,
-5. relative date text is deterministic for before/today/after,
-6. category/source/date labels map from backend enums without changing stored values,
+3. shared Seoul date helper is used by API/page and relative dates are deterministic for before/today/after,
+4. dashboard full/section empty states,
+5. no fake KPI/readiness/legal-risk/probability copy,
+6. category/source/deadline labels map from backend enums without changing stored values,
 7. create form required/optional/amount validation,
 8. create POST success navigates using returned real ID,
 9. create/edit 422 issues bind to fields,
 10. network/500/401 recovery states,
-11. Vault detail same not-found behavior for missing/cross-user result,
+11. Vault detail same not-found behavior for missing/cross-user repository result,
 12. edit PATCH sends only intended changed fields and supports clearing nullable fields,
 13. archive requires confirmation and uses archive endpoint rather than delete,
-14. Deadline create/update/delete use nested owner-scoped endpoints,
+14. Deadline create defaults to custom/user_entered and create/update/delete use nested owner-scoped endpoints,
 15. deadline copy never silently promotes a recorded date to a legal deadline,
 16. no raw owner/session ID becomes a client authority,
 17. responsive/style/accessibility component contracts,
@@ -392,7 +421,7 @@ FE-001 is ready for integration when:
 - authenticated + currently onboarded users see real owner-scoped dashboard data,
 - empty users see an honest first-Vault CTA rather than samples,
 - Vault create/detail/edit/archive works through existing server contracts,
-- Deadline CRUD is available with source-neutral language,
+- Deadline CRUD is available with exact backend enum mappings and source-neutral language,
 - missing/cross-user resources share the same not-found UX,
 - client code never becomes the ownership authority,
 - existing design-system/accessibility contracts are preserved,
