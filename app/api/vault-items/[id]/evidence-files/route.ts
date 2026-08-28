@@ -16,6 +16,8 @@ import {
 import { parseStorageConfig } from "@/src/storage/config";
 import { createEvidenceStorage } from "@/src/storage/storage-factory";
 
+const MAX_MULTIPART_REQUEST_BYTES = 21 * 1024 * 1024;
+
 export type EvidenceUploadRouteDependencies = {
   resolveUser(rawToken: string | null): Promise<{ id: string; displayName: string } | null>;
   uploadEvidence(input: UploadEvidenceFileInput): Promise<EvidenceFileDto>;
@@ -79,6 +81,12 @@ function isUploadFile(value: unknown): value is UploadFileLike {
   );
 }
 
+function declaredBodyTooLarge(request: Request) {
+  const value = request.headers.get("content-length");
+  if (!value || !/^\d+$/.test(value)) return false;
+  return Number(value) > MAX_MULTIPART_REQUEST_BYTES;
+}
+
 export async function createEvidenceUploadResponse(
   request: Request,
   vaultItemId: string,
@@ -86,6 +94,10 @@ export async function createEvidenceUploadResponse(
 ) {
   const user = await dependencies.resolveUser(readCookie(request, "ev_session"));
   if (!user) return jsonNoStore({ error: "unauthorized" }, 401);
+
+  if (declaredBodyTooLarge(request)) {
+    return jsonNoStore({ error: "file_too_large" }, 413);
+  }
 
   let form: FormData;
   try {
