@@ -1,6 +1,6 @@
 # Evidence Vault — Luna v3 Task DAG
 
-Updated: 2026-08-27
+Updated: 2026-08-28
 Team: 해바라기
 Canonical repository: `BloomBouquet/evidence-vault`
 Integration branch: `develop`
@@ -38,6 +38,21 @@ Organization Project Intake and Team Evolution are organization-level roles and 
 - Debug / Problem Router is conditional and is dispatched only for blocked execution.
 - A writer task is complete only when branch, commit, PR, and reported verification evidence agree with actual repository state.
 
+## PM-002 replan — onboarding prerequisite
+
+DES-001 defines onboarding as a hard product gate: an authenticated user must confirm age 14 or older and accept the current Terms and Privacy Policy before protected evidence workflows become available.
+
+Repository verification after BE-003 and BE-004 showed that the current protected layout checks only the Evidence Vault application session and the current `ev_users` schema has no versioned acceptance state. Starting FE-001 without resolving this would violate the approved Designer contract and would make the frontend invent a security/privacy prerequisite that the backend cannot enforce.
+
+PM-002 therefore inserts two explicit tasks:
+
+- `ONB-001` Backend — versioned onboarding acceptance persistence and authenticated API.
+- `ONBUI-001` Frontend — onboarding/Terms/Privacy UI plus protected-route completion gate.
+
+`FE-001` now depends on `ONBUI-001` in addition to the existing Designer/Auth/BE-003 dependencies. `BE-005` remains independently dependency-ready after BE-003 + BE-004 and may run in parallel with `ONBUI-001` once `ONB-001` is integrated.
+
+The replan does not invalidate completed AUTH/BE-003/BE-004 evidence. It adds the missing prerequisite before product-data UI work.
+
 ## Shared 꽃다발 auth injection
 
 Evidence Vault is `needsAuth=true`, so the upgraded Luna auth policy requires two independent standard tasks:
@@ -60,7 +75,10 @@ The Frontend auth task directly depends on the Backend auth contract. Neither ta
 | AUTHUI-001 | Frontend | 꽃다발 SSO client states/login/callback/logout/401 resync | `agent/해바라기/frontend/bouquet-auth-client` | AUTH-001, DES-001 |
 | BE-003 | Backend | Vault/Deadline/Event owner-scoped API | `agent/해바라기/backend/vault-domain-api` | BE-001 |
 | BE-004 | Backend | Private evidence storage + integrity + deletion primitives | `agent/해바라기/backend/private-evidence-storage` | BE-001 |
-| FE-001 | Frontend | Dashboard + Vault CRUD UI | `agent/해바라기/frontend/dashboard-vault-flow` | DES-001, AUTHUI-001, BE-003 |
+| PM-002 | PM | Insert onboarding prerequisite discovered after auth/domain integration | `agent/해바라기/pm/onboarding-prerequisite-replan` | DES-001, AUTHUI-001, BE-003, BE-004 |
+| ONB-001 | Backend | Versioned 14+ / Terms / Privacy acceptance persistence + API | `agent/해바라기/backend/onboarding-acceptance` | PM-002, AUTH-001 |
+| ONBUI-001 | Frontend | Onboarding/Terms/Privacy UI + protected-route completion gate | `agent/해바라기/frontend/onboarding-ui` | ONB-001, AUTHUI-001, DES-001 |
+| FE-001 | Frontend | Dashboard + Vault CRUD UI | `agent/해바라기/frontend/dashboard-vault-flow` | DES-001, AUTHUI-001, BE-003, ONBUI-001 |
 | FE-002 | Frontend | Timeline/upload/download/privacy UX | `agent/해바라기/frontend/evidence-timeline` | FE-001, BE-004 |
 | BE-005 | Backend | Case mode + export packet + deletion reconciliation | `agent/해바라기/backend/case-export-deletion` | BE-003, BE-004 |
 | FE-003 | Frontend | Case/export/privacy settings + complete app states | `agent/해바라기/frontend/case-export-privacy` | FE-002, BE-005 |
@@ -84,11 +102,19 @@ PM-001
    ├─ BE-003 ───────────────┤
    └─ BE-004 ───────────────┘
                            ↓
+                         PM-002
+                           ↓
+                         ONB-001
+                           ↓
+                       ONBUI-001
+                           ↓
                          FE-001
                            ↓ + BE-004
                          FE-002
 
 BE-003 + BE-004 → BE-005
+ONB-001 → ONBUI-001
+ONBUI-001 + DES-001 + AUTHUI-001 + BE-003 → FE-001
 FE-002 + BE-005 → FE-003
 FE-003 + BE-005 → DM-001
 DM-001 → DOC-001 → CR-001 → REV-001 → QA-001
@@ -130,6 +156,21 @@ The Frontend auth task must verify:
 - errors expose retry without showing code/token/verifier/provider internals,
 - auth actions are keyboard/focus accessible,
 - browser-level flow covers anonymous → 꽃다발 Portal → callback → protected app → project logout/session expiry.
+
+## Onboarding acceptance contract
+
+`ONB-001` and `ONBUI-001` together must guarantee:
+
+- authentication alone is insufficient to enter evidence workflows,
+- age is represented only as an explicit `14세 이상` acknowledgement; date of birth is not collected,
+- Terms and Privacy acceptances are stored with explicit document versions and timestamps,
+- the server derives the user from `ev_session`; client-supplied user identifiers cannot choose the acceptance owner,
+- missing or outdated required acceptance produces an incomplete onboarding state rather than silently accepting,
+- `/onboarding` remains reachable to an authenticated incomplete user,
+- `/dashboard`, `/vault/*`, `/case/*`, and other evidence-bearing protected routes require current onboarding completion,
+- Terms/Privacy text is not populated with fabricated operator, address, representative, or privacy-contact information,
+- policy-version changes can require re-acceptance without deleting historical acceptance records,
+- no legal-advice or age-verification guarantee is implied by the acknowledgement.
 
 ## Task-specific plan rule
 
@@ -179,13 +220,14 @@ A task never becomes `done` merely because a retry budget was exhausted.
 
 The following findings are objective blockers, regardless of Agent preference:
 
-- cross-user access to another user's VaultItem, event, file, case, or export,
+- cross-user access to another user's VaultItem, event, file, case, export, or onboarding acceptance state,
+- evidence workflow access while required current onboarding acceptance is incomplete,
 - permanent/public evidence object URLs,
 - signed URL issuance without server-side ownership verification,
 - project-owned email/password credential storage,
 - bouquet token/code/verifier exposure to browser persistent storage or logs,
 - legal-entitlement/individualized legal-advice claims outside the approved product boundary,
-- missing deletion of stored evidence after the documented deletion workflow completes,
+- missing deletion of stored evidence or export objects after the documented deletion workflow completes,
 - intentional medical/health dispute workflow in MVP,
 - failing required build/test/QA evidence,
 - fabricated analytics/market/deployment results.
