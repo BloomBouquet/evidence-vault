@@ -221,10 +221,13 @@ The packet retention/access TTL is server-owned configuration:
 ```ts
 type ExportConfig = {
   packetTtlSeconds: number;
+  pdfFontPath: string;
 };
 ```
 
-Production configuration must provide a positive bounded value. Clients cannot select expiration. Tests inject explicit values. Missing/invalid production configuration yields a normalized `internal_error`; this task does not invent a retention duration on behalf of the operator.
+Production configuration must provide a positive bounded packet TTL and a readable path to a Korean-capable font licensed for the deployment. Clients cannot select expiration or font. Tests inject explicit fixtures.
+
+Missing/invalid TTL or unreadable/unsupported PDF font produces a normalized export failure (`export_configuration_invalid`) and the packet must not be marked `ready`. The repository does not commit or redistribute a font file merely to satisfy this task; font licensing/deployment is an operator concern and must be verified separately.
 
 ### Status lifecycle
 
@@ -275,11 +278,20 @@ Required disclaimer:
 
 `증빙함은 사용자가 입력한 사실과 첨부 자료를 정리하는 도구입니다. 개별 사건에 대한 법률 판단, 법률상담 또는 법률대리를 제공하지 않습니다.`
 
+The PDF renderer must register/use the configured Korean-capable font before writing Korean text. A renderer/font error fails generation; it must never silently emit missing-glyph boxes or mark a garbled PDF ready.
+
 Do not add legal conclusions, success estimates, authenticity/admissibility claims, or generated facts.
 
 ### `manifest.json`
 
-Canonical UTF-8 JSON with deterministic key ordering. Include:
+Canonical UTF-8 JSON is produced with these exact serialization rules:
+
+1. recursively sort every object key by ascending Unicode code-point order,
+2. preserve array order exactly as established by the deterministic event/evidence ordering rules,
+3. serialize with `JSON.stringify(canonicalObject)` and no pretty-print whitespace,
+4. encode the resulting string as UTF-8 with no BOM and no trailing newline.
+
+Include:
 
 - packet format version,
 - generated timestamp,
@@ -296,7 +308,7 @@ Exclude:
 - deleted evidence,
 - provider URLs.
 
-`manifest_hash` stored in `ev_export_packets` is SHA-256 of the exact `manifest.json` bytes placed into the ZIP. It is described only as an integrity fingerprint of that manifest, not proof of authenticity or legal effect.
+`manifest_hash` stored in `ev_export_packets` is SHA-256 of the exact canonical UTF-8 `manifest.json` bytes placed into the ZIP. It is described only as an integrity fingerprint of that manifest, not proof of authenticity or legal effect.
 
 ### Evidence filenames
 
@@ -323,11 +335,12 @@ Generation sequence:
 1. validate owner/case/selection,
 2. insert `generating` export row,
 3. read selected evidence bytes server-side,
-4. create `summary.pdf` and canonical `manifest.json`,
-5. assemble ZIP,
-6. compute manifest hash and total ZIP byte size,
-7. put private export object,
-8. mark export `ready`, set generated/expires/hash/byte-size metadata.
+4. validate/register the configured Korean PDF font,
+5. create `summary.pdf` and canonical `manifest.json`,
+6. assemble ZIP,
+7. compute manifest hash and total ZIP byte size,
+8. put private export object,
+9. mark export `ready`, set generated/expires/hash/byte-size metadata.
 
 If generation fails before storage write, mark `failed` with a normalized code.
 
@@ -487,6 +500,8 @@ Objective blockers:
 - permanent/public export URL,
 - server export generation using public/signed HTTP round-trip instead of internal object read,
 - manifest/summary containing session/Bouquet/storage secrets,
+- export marked ready with an unreadable/garbled Korean PDF,
+- manifest hash produced from environment-dependent/noncanonical serialization,
 - account deletion that leaves application session access active after request acceptance,
 - hard-deleting account metadata before private-object reconciliation permits finalization,
 - reporting deletion completed while object jobs are queued/blocked,
@@ -507,21 +522,23 @@ Required automated coverage:
 7. storage adapters implement server-only raw read,
 8. export selection rejects duplicate/unowned/unlinked/deleted resources,
 9. selection count/byte limits are enforced,
-10. packet contains `summary.pdf`, `manifest.json`, `evidence/*` only at top level,
-11. manifest hash matches exact manifest bytes,
-12. ZIP path sanitization prevents traversal/collisions,
-13. summary/manifest exclude secrets/storage keys and legal conclusions,
-14. storage-write/metadata-failure queues orphan export deletion,
-15. export GET/download/delete are owner-scoped,
-16. download target TTL is 300 seconds,
-17. expired packet transitions to `expired`, becomes nondownloadable, and queues deletion,
-18. explicit export delete denies access immediately and reconciles object deletion,
-19. deletion processor supports evidence and export kinds with bounded retry/not-found completion,
-20. account deletion marks user deleted before response, revokes sessions, and queues all private objects idempotently,
-21. account finalization hard-deletes only after all required jobs complete and refuses blocked/queued state,
-22. complete PostgreSQL migration, unit suite, production build pass.
+10. missing/unreadable Korean PDF font fails generation without a ready packet,
+11. packet contains `summary.pdf`, `manifest.json`, `evidence/*` only at top level,
+12. canonical serializer recursively sorts object keys, preserves array order, emits UTF-8 without BOM/trailing newline,
+13. manifest hash matches exact manifest bytes,
+14. ZIP path sanitization prevents traversal/collisions,
+15. summary/manifest exclude secrets/storage keys and legal conclusions,
+16. storage-write/metadata-failure queues orphan export deletion,
+17. export GET/download/delete are owner-scoped,
+18. download target TTL is 300 seconds,
+19. expired packet transitions to `expired`, becomes nondownloadable, and queues deletion,
+20. explicit export delete denies access immediately and reconciles object deletion,
+21. deletion processor supports evidence and export kinds with bounded retry/not-found completion,
+22. account deletion marks user deleted before response, revokes sessions, and queues all private objects idempotently,
+23. account finalization hard-deletes only after all required jobs complete and refuses blocked/queued state,
+24. complete PostgreSQL migration, unit suite, production build pass.
 
-A real production bucket/deployed download and final production account-erasure operation are not claimed until later deployment/QA evidence performs them.
+A real production bucket/deployed download, deployed Korean font file, and final production account-erasure operation are not claimed until later deployment/QA evidence performs them.
 
 ## Explicit non-goals
 
@@ -533,6 +550,7 @@ A real production bucket/deployed download and final production account-erasure 
 - no payment/billing,
 - no medical/health workflow,
 - no claim that SHA-256 proves authenticity/admissibility,
+- no font redistribution or licensing claim,
 - no frontend case/export/privacy UI.
 
 ## Acceptance criteria
@@ -542,9 +560,11 @@ BE-005 is ready for integration when:
 - cases and evidence links are owner scoped and neutral,
 - preparation projection is deterministic and non-legal,
 - export packet bytes are generated from verified private evidence through internal storage reads,
+- Korean PDF generation fails safely when configured font support is unavailable,
+- canonical manifest serialization makes the stored hash deterministic,
 - generated packet structure/hash/download/expiry lifecycle matches this contract,
 - export/evidence deletion reconciliation is idempotent and bounded,
 - account deletion immediately removes application-session access and queues all private-object destruction,
 - final hard deletion occurs only after reconciliation evidence supports it,
 - PostgreSQL migration, full tests, and production build are green,
-- real production storage/deployment checks not performed remain explicitly unclaimed.
+- real production storage/font/deployment checks not performed remain explicitly unclaimed.
