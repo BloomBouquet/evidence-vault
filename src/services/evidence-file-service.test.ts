@@ -13,7 +13,7 @@ function deps(overrides: Partial<EvidenceFileServiceDeps> = {}): EvidenceFileSer
   const storage: EvidenceStorage = {
     putObject: vi.fn(async () => undefined),
     deleteObject: vi.fn(async () => undefined),
-    getDownloadTarget: vi.fn(async () => ({ kind: "bytes", bytes })),
+    getDownloadTarget: vi.fn(async () => ({ kind: "bytes" as const, bytes })),
   };
 
   return {
