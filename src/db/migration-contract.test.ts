@@ -22,4 +22,16 @@ describe("PostgreSQL migration contract", () => {
       expect(sql).toContain(`\"${table}\"`);
     }
   });
+
+  it("ships a deletion-job idempotency migration and journals it", () => {
+    expect(existsSync("drizzle/0001_deletion_job_idempotency.sql")).toBe(true);
+    const sql = readFileSync("drizzle/0001_deletion_job_idempotency.sql", "utf8");
+    expect(sql).toContain("ev_deletion_jobs_owner_kind_target_unique");
+    expect(sql).toContain("user_id");
+    expect(sql).toContain("kind");
+    expect(sql).toContain("target_id");
+
+    const journal = readFileSync("drizzle/meta/_journal.json", "utf8");
+    expect(journal).toContain("0001_deletion_job_idempotency");
+  });
 });
