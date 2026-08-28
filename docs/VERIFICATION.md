@@ -198,6 +198,70 @@ AUTHUI-001 automated verification does **not** claim a real deployed end-to-end 
 
 The CSS contract verifies that narrow-screen rules exist, but that is not a substitute for a manual browser layout/accessibility pass.
 
+## Vault domain API BE-003
+
+BE-003 provides the authenticated, owner-scoped API foundation required by the later dashboard/timeline frontend work. Scope includes VaultItem CRUD/archive, Deadline CRUD, Evidence Event CRUD, the dashboard projection endpoint, nullable merchant support, and cross-user access regression coverage.
+
+### TDD and implementation evidence
+
+| Contract | RED / first failing evidence | GREEN evidence |
+|---|---|---|
+| nullable merchant + update schemas + migration artifact | failing schema assertions were introduced before implementation | run `33131329676` passed frozen install, unit tests, and production build |
+| shared API auth/error helpers | run `33131396319`: only the two new helper suites failed because their modules did not exist | run `33131481702` |
+| VaultItem repository + CRUD/archive routes | run `33131602122`: existing 31 files / 120 tests passed; only the new VaultItem contract failed | run `33131723269` |
+| Deadline nested repository/routes | run `33131834003`: existing 35 files / 132 tests passed; only the new Deadline modules/routes failed | run `33131985886` |
+| Evidence Event nested repository/routes | run `33132082634`, original job `98723678681`: existing 38 files / 143 tests passed; only the three new Event modules/routes failed | rerun job `98735412696`, which checked out current branch HEAD `5142b8f49638db3a3c380232a9b79b9bc5a82c1c` |
+| dashboard projection + date-only arithmetic + `/api/dashboard` | rerun job `98735968854`: existing 41 files / 152 tests passed; only the new dashboard/date contract failed | rerun job `98736493492`, which checked out current branch HEAD `5c388146...` and passed 44 files / 160 tests plus production build |
+| cross-user API security/type regression gate | security tests were added against the implemented route factories; no production bypass was required to make them pass | rerun job `98736909692`, which checked out branch HEAD `051b325a...` and passed 45 files / 164 tests plus production build |
+
+The later BE-003 workflow reruns are valid branch-head executions because `.github/workflows/ci.yml` explicitly checks out the pull request head ref. Job logs were inspected to confirm the current branch SHA being tested rather than relying on stale workflow-run metadata from the original RED attempt.
+
+### Implemented ownership and privacy contract
+
+- Every protected route derives the local owner only from the server-side Evidence Vault session resolver; request bodies cannot select `ownerUserId`, `userId`, or `createdByUserId`.
+- VaultItem reads and mutations include `user_id = authenticated user` in the repository query boundary.
+- Deadline and Evidence Event operations first require an owned parent VaultItem and production nested SQL additionally constrains the owned parent in the query itself.
+- Evidence Event creation always stores `createdByUserId` from the authenticated local user.
+- Missing resources and resources owned by another user both normalize to HTTP `404` with `{ "error": "not_found" }` rather than disclosing existence.
+- Protected JSON responses use `Cache-Control: no-store`.
+- API DTOs do not expose owner or event-creator identifiers.
+- VaultItem removal in BE-003 is archive-state mutation, not hard deletion.
+- Dashboard projection queries are owner-scoped in SQL, return only active records, preserve the seven-day recent-overdue window, and enforce the documented limits/order without inventing readiness, legal-risk, refund-probability, or other fake metrics.
+- Empty dashboard data remains honest empty arrays.
+
+### Database/migration contract
+
+BE-003 adds the nullable merchant migration artifact and Drizzle journal entry required to make `ev_vault_items.merchant_name` optional:
+
+```text
+drizzle/0000_optional_merchant.sql
+drizzle/meta/_journal.json
+```
+
+The migration files and schema build successfully, but **this task does not claim that the SQL migration was applied to a live PostgreSQL database**.
+
+### Latest automated evidence before documentation-only finalization
+
+Branch HEAD `051b325a...` was verified by Actions rerun job `98736909692`:
+
+```text
+pnpm install --frozen-lockfile  PASS
+pnpm test:run                  PASS — 45 test files, 164 tests
+pnpm build                     PASS — Next.js 16.3.3 production build and TypeScript check
+```
+
+The production build includes `/api/dashboard`, VaultItem collection/detail/archive, Deadline collection/detail, and Evidence Event collection/detail routes in addition to the existing authentication and health routes.
+
+### Not yet claimed as PASS
+
+The following remain explicit later gates and are not represented as completed by BE-003:
+
+- applying the migration against a real PostgreSQL environment and verifying rollback/forward behavior,
+- real PostgreSQL integration tests for owner-scoped queries and nested joins,
+- deployed-equivalent browser/API end-to-end tests using real Bouquet login/session persistence,
+- manual browser/accessibility verification of the future composed dashboard/timeline UI,
+- independent Code Review Agent / Reviewer / QA evidence required by the Luna release chain.
+
 ## Current verification rule
 
-A later Agent must re-run the relevant unit/build/browser checks after composing these primitives and auth routes into onboarding, dashboard, timeline, upload, case/export, or privacy flows. Existing DS-001/AUTH-001/AUTHUI-001 CI evidence is not a substitute for testing those future flows.
+A later Agent must re-run the relevant unit/build/browser checks after composing these primitives and auth/routes into onboarding, dashboard, timeline, upload, case/export, or privacy flows. Existing DS-001/AUTH-001/AUTHUI-001/BE-003 CI evidence is not a substitute for testing those future flows.
