@@ -2,12 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("integration preview server scripts", () => {
-  it("starts only on the approved loopback boundary", () => {
+  it("starts only on the approved loopback and BloomBouquet provider boundaries", () => {
     const start = readFileSync("scripts/start-preview.sh", "utf8");
 
     expect(start).toContain("/home/ubuntu/evidence-vault/.env.production");
     expect(start).toContain("127.0.0.1");
     expect(start).toContain("3011");
+    expect(start).toContain("https://bloombouquet.https.gsmsv.site");
+    expect(start).not.toContain("https://playground.https.gsmsv.site");
     expect(start).not.toContain("0.0.0.0");
   });
 
