@@ -3,10 +3,10 @@ import type { AuthConfig } from "@/src/auth/config";
 import { createBouquetCallbackResponse, type CallbackDependencies } from "./route";
 
 const config: AuthConfig = {
-  appBaseUrl: new URL("https://vault.example.com"),
+  appBaseUrl: new URL("https://vault.example.com/apps/evidence-vault/"),
   bouquetBaseUrl: new URL("https://id.example.com"),
   bouquetClientId: "evidence-vault",
-  bouquetRedirectUri: new URL("https://vault.example.com/auth/bouquet/callback"),
+  bouquetRedirectUri: new URL("https://vault.example.com/apps/evidence-vault/auth/bouquet/callback"),
   sessionSecret: "01234567890123456789012345678901",
   secureCookies: true,
 };
@@ -34,7 +34,7 @@ function deps(overrides: Partial<CallbackDependencies> = {}): CallbackDependenci
 }
 
 function callbackRequest(query = "code=one-time-code&state=expected-state", cookie = "ev_oauth_attempt=sealed-attempt") {
-  return new Request(`https://vault.example.com/auth/bouquet/callback?${query}`, {
+  return new Request(`https://vault.example.com/apps/evidence-vault/auth/bouquet/callback?${query}`, {
     headers: cookie ? { cookie } : undefined,
   });
 }
@@ -54,7 +54,9 @@ describe("createBouquetCallbackResponse", () => {
     const response = await createBouquetCallbackResponse(callbackRequest(), dependencies);
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://vault.example.com/vault/item-1?tab=timeline");
+    expect(response.headers.get("location")).toBe(
+      "https://vault.example.com/apps/evidence-vault/vault/item-1?tab=timeline",
+    );
     expectPrivacyHeaders(response);
     expect(dependencies.openAttempt).toHaveBeenCalledWith("sealed-attempt", config.sessionSecret);
     expect(dependencies.statesMatch).toHaveBeenCalledWith("expected-state", "expected-state");
@@ -71,8 +73,9 @@ describe("createBouquetCallbackResponse", () => {
     expect(cookies).toMatch(/HttpOnly/i);
     expect(cookies).toMatch(/Secure/i);
     expect(cookies).toMatch(/SameSite=Lax/i);
-    expect(cookies).toContain("Path=/");
+    expect(cookies).toContain("Path=/apps/evidence-vault");
     expect(cookies).toContain("ev_oauth_attempt=");
+    expect(cookies).toContain("Path=/apps/evidence-vault/auth/bouquet");
     expect(cookies).toMatch(/Max-Age=0/);
     expect(response.headers.get("location")).not.toContain("provider-access-secret");
     expect(response.headers.get("location")).not.toContain("server-only-verifier");
@@ -86,9 +89,12 @@ describe("createBouquetCallbackResponse", () => {
     const dependencies = deps();
     const response = await createBouquetCallbackResponse(request, dependencies);
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expect(response.headers.get("location")).toBe(
+      "https://vault.example.com/apps/evidence-vault/?auth_error=oauth_failed",
+    );
     expectPrivacyHeaders(response);
     expect(setCookieHeader(response)).toContain("ev_oauth_attempt=");
+    expect(setCookieHeader(response)).toContain("Path=/apps/evidence-vault/auth/bouquet");
     expect(setCookieHeader(response)).toMatch(/Max-Age=0/);
     expect(dependencies.createSession).not.toHaveBeenCalled();
   });
@@ -96,7 +102,9 @@ describe("createBouquetCallbackResponse", () => {
   it("rejects state mismatch before code exchange", async () => {
     const dependencies = deps({ statesMatch: vi.fn(() => false) });
     const response = await createBouquetCallbackResponse(callbackRequest(), dependencies);
-    expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expect(response.headers.get("location")).toBe(
+      "https://vault.example.com/apps/evidence-vault/?auth_error=oauth_failed",
+    );
     expectPrivacyHeaders(response);
     expect(dependencies.exchangeCode).not.toHaveBeenCalled();
     expect(dependencies.createSession).not.toHaveBeenCalled();
@@ -111,7 +119,9 @@ describe("createBouquetCallbackResponse", () => {
     const dependencies = deps(override as Partial<CallbackDependencies>);
     const response = await createBouquetCallbackResponse(callbackRequest(), dependencies);
     const visible = `${response.headers.get("location")} ${setCookieHeader(response)}`;
-    expect(response.headers.get("location")).toBe("https://vault.example.com/?auth_error=oauth_failed");
+    expect(response.headers.get("location")).toBe(
+      "https://vault.example.com/apps/evidence-vault/?auth_error=oauth_failed",
+    );
     expectPrivacyHeaders(response);
     expect(visible).not.toContain("one-time-code");
     expect(visible).not.toContain("server-only-verifier");
