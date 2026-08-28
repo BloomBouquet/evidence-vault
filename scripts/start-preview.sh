@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="/home/ubuntu/evidence-vault"
-ENV_FILE="$APP_DIR/.env.production"
+ENV_FILE="/home/ubuntu/evidence-vault/.env.production"
 PORT="${PORT:-3011}"
 
 test -f "$ENV_FILE" || { echo "preview environment missing" >&2; exit 1; }
