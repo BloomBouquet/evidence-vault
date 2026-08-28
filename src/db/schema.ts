@@ -7,6 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -117,14 +118,24 @@ export const exportPackets = pgTable("ev_export_packets", {
   createdAt: createdAt(),
 });
 
-export const deletionJobs = pgTable("ev_deletion_jobs", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  kind: varchar("kind", { length: 40 }).notNull(),
-  targetId: uuid("target_id").notNull(),
-  status: varchar("status", { length: 24 }).default("queued").notNull(),
-  attempts: integer("attempts").default(0).notNull(),
-  lastErrorCode: varchar("last_error_code", { length: 80 }),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const deletionJobs = pgTable(
+  "ev_deletion_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 40 }).notNull(),
+    targetId: uuid("target_id").notNull(),
+    status: varchar("status", { length: 24 }).default("queued").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastErrorCode: varchar("last_error_code", { length: 80 }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("ev_deletion_jobs_owner_kind_target_unique").on(
+      table.userId,
+      table.kind,
+      table.targetId,
+    ),
+  ],
+);

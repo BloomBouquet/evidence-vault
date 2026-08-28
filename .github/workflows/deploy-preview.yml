@@ -1,0 +1,208 @@
+name: Evidence Vault Preview
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preview action
+        required: true
+        default: probe
+        type: choice
+        options:
+          - probe
+          - deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evidence-vault-preview
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: evidence_vault_preview_verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d evidence_vault_preview_verify"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify committed migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/evidence_vault_preview_verify
+        run: pnpm db:migrate
+
+      - name: Run unit tests
+        run: pnpm test:run
+
+      - name: Build production application
+        run: pnpm build
+
+  server-probe:
+    name: server-probe
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && (inputs.mode == 'probe' || inputs.mode == 'deploy') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Detect authorized SSH secret
+        id: ssh-secret
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -n "$SSH_PASSWORD" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "PROBE_SSH=available"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "PROBE_SSH=unavailable"
+          fi
+
+      - name: Report blocked read-only probe
+        if: ${{ steps.ssh-secret.outputs.available != 'true' }}
+        run: echo "Evidence Vault preview probe blocked because SSH_PASSWORD is unavailable to this repository; no server mutation was attempted."
+
+      - name: Probe preview infrastructure read-only
+        if: ${{ steps.ssh-secret.outputs.available == 'true' }}
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        with:
+          host: ssh.gsmsv.site
+          port: 24136
+          username: ubuntu
+          password: ${{ secrets.SSH_PASSWORD }}
+          script_stop: true
+          script: |
+            set -u
+            echo "PROBE_HOST_REACHED=yes"
+
+            if command -v node >/dev/null 2>&1; then echo "PROBE_NODE=present"; else echo "PROBE_NODE=missing"; fi
+            if command -v pnpm >/dev/null 2>&1; then echo "PROBE_PNPM=present"; else echo "PROBE_PNPM=missing"; fi
+            if command -v pm2 >/dev/null 2>&1; then echo "PROBE_PM2=present"; else echo "PROBE_PM2=missing"; fi
+            if command -v psql >/dev/null 2>&1; then echo "PROBE_POSTGRES_CLIENT=present"; else echo "PROBE_POSTGRES_CLIENT=missing"; fi
+            if command -v nginx >/dev/null 2>&1; then echo "PROBE_NGINX=present"; else echo "PROBE_NGINX=missing"; fi
+
+            if test -d /home/ubuntu/evidence-vault/.git; then
+              echo "PROBE_REPOSITORY=present"
+            else
+              echo "PROBE_REPOSITORY=missing"
+            fi
+
+            if test -f /home/ubuntu/evidence-vault/.env.production; then
+              echo "PROBE_ENVIRONMENT=present"
+              ENV_MODE="$(stat -c '%a' /home/ubuntu/evidence-vault/.env.production 2>/dev/null || true)"
+              if test "$ENV_MODE" = "600"; then echo "PROBE_ENV_MODE=600"; else echo "PROBE_ENV_MODE=invalid"; fi
+            else
+              echo "PROBE_ENVIRONMENT=missing"
+            fi
+
+            if ss -ltn 2>/dev/null | awk '$4 ~ /:3011$/ { found=1 } END { exit found ? 0 : 1 }'; then
+              echo "PROBE_PORT_3011=occupied"
+            else
+              echo "PROBE_PORT_3011=free"
+            fi
+
+            if getent ahosts evidence-vault.https.gsmsv.site >/dev/null 2>&1; then
+              echo "PROBE_DNS=resolved"
+            else
+              echo "PROBE_DNS=unresolved"
+            fi
+
+            if sudo -n nginx -T >/tmp/evidence-vault-nginx-probe.txt 2>/dev/null; then
+              if grep -Fq 'server_name evidence-vault.https.gsmsv.site' /tmp/evidence-vault-nginx-probe.txt; then
+                echo "PROBE_NGINX_ROUTE=present"
+              else
+                echo "PROBE_NGINX_ROUTE=missing"
+              fi
+              rm -f /tmp/evidence-vault-nginx-probe.txt
+            else
+              echo "PROBE_NGINX_ROUTE=unavailable"
+            fi
+
+            CERT_COVERAGE=unavailable
+            if command -v openssl >/dev/null 2>&1 && sudo -n test -d /etc/letsencrypt/live 2>/dev/null; then
+              CERT_COVERAGE=missing
+              while IFS= read -r CERT; do
+                if sudo -n openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null | grep -Eq 'DNS:(\*\.https\.gsmsv\.site|evidence-vault\.https\.gsmsv\.site)'; then
+                  CERT_COVERAGE=covered
+                  break
+                fi
+              done < <(sudo -n find /etc/letsencrypt/live -name fullchain.pem -type f -print 2>/dev/null)
+            fi
+            echo "PROBE_TLS_CERT=$CERT_COVERAGE"
+
+  deploy:
+    needs:
+      - verify
+      - server-probe
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'deploy' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require authorized SSH secret
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$SSH_PASSWORD" ]]; then
+            echo "Evidence Vault preview deploy blocked: SSH_PASSWORD is unavailable to this repository." >&2
+            exit 1
+          fi
+
+      - name: Deploy exact verified develop SHA
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        with:
+          host: ssh.gsmsv.site
+          port: 24136
+          username: ubuntu
+          password: ${{ secrets.SSH_PASSWORD }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/evidence-vault
+            test -x scripts/deploy-preview.sh
+            scripts/deploy-preview.sh "${{ github.sha }}"
+
+      - name: Verify public HTTPS health
+        shell: bash
+        run: |
+          BODY="$(curl -fsS --retry 5 --retry-delay 2 --max-time 10 https://evidence-vault.https.gsmsv.site/api/health)"
+          printf '%s' "$BODY" | grep -q '"ok":true'
+          printf '%s' "$BODY" | grep -q '"service":"evidence-vault"'
+          echo "Evidence Vault public preview health OK"
