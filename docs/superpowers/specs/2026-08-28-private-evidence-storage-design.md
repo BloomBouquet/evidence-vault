@@ -27,7 +27,7 @@ BE-004 must provide:
 3. explicit file type and size validation,
 4. SHA-256 integrity fingerprinting calculated by the server over the stored payload,
 5. production S3-compatible storage and local-development storage through one adapter interface,
-6. short-lived download authorization,
+6. short-lived production S3 download authorization,
 7. immediate application-level revocation on deletion request,
 8. physical-object deletion with bounded retry/reconciliation state,
 9. cross-user non-disclosure behavior where missing and unauthorized resources are indistinguishable,
@@ -64,14 +64,27 @@ The application layer depends only on the interface. Storage-driver selection is
 The adapter surface is intentionally small:
 
 ```ts
+export type EvidenceDownloadTarget =
+  | {
+      kind: "bytes";
+      bytes: Uint8Array;
+    }
+  | {
+      kind: "redirect";
+      url: string;
+      expiresAt: Date;
+    };
+
 export interface EvidenceStorage {
   putObject(input: PutEvidenceObjectInput): Promise<void>;
   deleteObject(storageKey: string): Promise<void>;
-  createDownloadUrl(input: DownloadUrlInput): Promise<string>;
+  createDownloadTarget(input: DownloadTargetInput): Promise<EvidenceDownloadTarget>;
 }
 ```
 
-`putObject` accepts bytes, MIME type, and a server-generated storage key. `deleteObject` is idempotent from the application point of view: deleting an already absent object is treated as success when the storage provider reports a not-found condition. `createDownloadUrl` must never return a public/permanent URL.
+`putObject` accepts bytes, MIME type, and a server-generated storage key. `deleteObject` is idempotent from the application point of view: deleting an already absent object is treated as success when the storage provider reports a not-found condition.
+
+For local development, `createDownloadTarget` returns bytes and the protected application route streams them. For S3-compatible storage, it returns a private signed redirect target with a 300-second expiry.
 
 ### 4.2 Upload strategy
 
@@ -79,15 +92,17 @@ For the MVP, the browser uploads the file to a protected Next.js route. The serv
 
 The 20 MiB product limit keeps this path bounded enough for the MVP and avoids trusting a browser-supplied checksum. Direct presigned browser uploads are explicitly deferred.
 
-### 4.3 Object keys
+### 4.3 Object identity and key
 
-Object keys are generated only by the server and never include raw user filenames. A recommended shape is:
+The service generates the Evidence File UUID before writing the object. The storage key is deterministic from server-owned identifiers only:
 
 ```text
-users/<ownerUserId>/vault-items/<vaultItemId>/<randomUuid>
+users/<ownerUserId>/evidence/<evidenceFileId>
 ```
 
-The key may include an extension derived from an allowed MIME type, but the original filename is stored only as metadata. User-controlled path fragments are never concatenated into the storage key.
+The raw filename, MIME type, extension, VaultItem title, merchant name, and any other user-controlled string never appear in the storage key.
+
+This deterministic key is required for reconciliation: if object storage succeeds but the evidence metadata insert fails, a deletion job containing `userId` and the generated `evidenceFileId` can reconstruct the orphan object's storage key without relying on a metadata row that does not exist.
 
 ## 5. Storage configuration
 
@@ -106,10 +121,11 @@ S3_FORCE_PATH_STYLE=false
 
 Rules:
 
-- `local` is allowed for local development/test only.
+- `local` is allowed for development/test only.
+- production rejects `STORAGE_DRIVER=local`.
 - `s3` requires bucket, region, access key, and secret key.
 - custom endpoint is optional for S3-compatible providers.
-- production configuration must reject `STORAGE_DRIVER=local`.
+- S3 objects are written without public ACL configuration.
 - no credential may be exposed to client bundles, JSON responses, browser storage, or logs.
 - Korea-region storage is preferred operationally; the code validates configuration but does not fabricate a claim that a production bucket exists.
 
@@ -131,11 +147,12 @@ Validation requirements:
 - reject empty files,
 - reject files above 20 MiB,
 - reject unsupported MIME types,
-- normalize the original filename for display/storage metadata length but do not use it as a path,
+- normalize the original filename for display metadata and enforce the database's 255-character limit,
+- never use the filename as a path,
 - reject upload if the referenced VaultItem is not owned by the authenticated user,
 - reject an `evidenceEventId` unless the event belongs to the same owned VaultItem.
 
-The API does not claim that MIME type proves content authenticity. Content-sniffing and malware scanning are separate production hardening concerns.
+The API does not claim that MIME type proves content authenticity. Content-sniffing and malware scanning are separate production-hardening concerns.
 
 ## 7. Integrity fingerprint
 
@@ -164,8 +181,9 @@ Input: `multipart/form-data`
 Expected fields:
 
 - `file` — required File,
-- `evidenceEventId` — optional UUID,
-- `redactionState` — optional, constrained to allowed server values when introduced.
+- `evidenceEventId` — optional UUID.
+
+`redactionState` is not accepted from this public route. New uploads use the server-side default `unreviewed`. A later explicit redacted-derivative service may set a different state after its own contract is implemented.
 
 Flow:
 
@@ -176,40 +194,49 @@ Flow:
 5. validate file size/type/name,
 6. read bytes,
 7. calculate SHA-256,
-8. generate server storage key,
-9. write private object,
-10. create `evidenceFiles` metadata row,
-11. return a DTO that excludes storage credentials and permanent object URLs.
+8. generate `evidenceFileId`,
+9. derive the deterministic private storage key,
+10. write the private object,
+11. create `evidenceFiles` metadata using the same generated ID and storage key,
+12. return a DTO that excludes storage key, credentials, provider details, and permanent object URLs.
 
-If object write succeeds but metadata creation fails, the service immediately attempts compensating object deletion. If compensating deletion fails, it records a deletion/reconciliation job so the orphan object is not silently abandoned.
+If object write succeeds but metadata creation fails, the service immediately attempts compensating object deletion. If compensation also fails, it creates a deletion job with:
+
+- `userId = ownerUserId`,
+- `kind = evidence_file_object`,
+- `targetId = evidenceFileId`,
+- `status = queued`.
+
+The worker can derive the orphan storage key from `userId + targetId`.
 
 ## 9. Download authorization flow
 
 Protected endpoint:
 
 ```text
-POST /api/evidence-files/[id]/download
+GET /api/evidence-files/[id]/download
 ```
 
 Flow:
 
 1. resolve authenticated user,
-2. query `evidenceFiles` using both file id and `ownerUserId`, excluding `deletedAt` rows,
+2. query `evidenceFiles` using both file ID and `ownerUserId`, excluding `deletedAt` rows,
 3. return the same `404 {"error":"not_found"}` for missing, deleted, and cross-user files,
-4. ask storage adapter for a short-lived download URL,
-5. return `{ url, expiresAt }` with `Cache-Control: no-store`.
+4. ask storage for a download target,
+5. local driver: stream bytes through the already authenticated route,
+6. S3 driver: return a temporary HTTP redirect to the 300-second signed private URL.
 
-Production S3 download URL TTL is exactly 300 seconds.
+All route responses set `Cache-Control: no-store`.
 
-A generated signed URL:
+For streamed local responses, use the stored MIME type and a safe `Content-Disposition: attachment` filename derived from metadata. Local absolute filesystem paths are never returned.
 
-- is not persisted in the database,
-- is not written to application logs,
-- is not included in analytics,
-- is not reusable after provider expiry,
-- is issued only after ownership verification.
+For S3-compatible storage:
 
-For local development, the adapter may issue an application-owned short-lived signed content URL rather than a filesystem path. Local absolute paths must never be returned to the browser.
+- signed download TTL is exactly 300 seconds,
+- signed URL is generated only after ownership verification,
+- signed URL is never persisted in the database,
+- signed URL is never intentionally written to application logs or analytics,
+- bucket/object is not made public to support download.
 
 ## 10. Delete and reconciliation flow
 
@@ -219,7 +246,7 @@ Protected endpoint:
 DELETE /api/evidence-files/[id]
 ```
 
-Deletion has two distinct phases.
+Deletion has two phases.
 
 ### Phase A — immediate application revocation
 
@@ -227,34 +254,38 @@ Within the database transaction/service boundary:
 
 1. verify file ownership,
 2. set `evidenceFiles.deletedAt` if not already set,
-3. create or ensure one active deletion job for the object.
+3. create or ensure one active deletion job with `kind = evidence_file_object` and `targetId = evidenceFileId`.
 
-After this point, all application reads and signed-download issuance exclude the file immediately.
+After this point, all application reads and download issuance exclude the file immediately.
+
+The DELETE API reports that deletion was accepted/queued. It does not report that physical object destruction is complete.
 
 ### Phase B — physical object deletion
 
-A deletion worker/service processes the job:
+A deterministic deletion worker/service processes the job:
 
-1. call `storage.deleteObject(storageKey)`,
-2. treat storage not-found as successful reconciliation,
-3. mark job `completed` on success,
-4. on transient/provider failure, increment `attempts` and store a bounded normalized `lastErrorCode`,
-5. keep the job retryable until the configured bounded retry policy is exhausted,
-6. after bounded retries, keep the job visibly failed/blocked for Debug / Problem Router or operator action; never mark it complete without evidence.
-
-The user-facing API must never report physical deletion complete merely because the metadata was hidden.
+1. derive storage key from `userId + targetId`,
+2. call `storage.deleteObject(storageKey)`,
+3. treat provider/object not-found as successful reconciliation,
+4. mark job `completed` on confirmed success/not-found,
+5. on retryable provider/network failure, increment `attempts`, set `status = queued`, and persist a normalized bounded `lastErrorCode`,
+6. on permanent configuration/auth failure, increment `attempts` and set `status = blocked`,
+7. when a retryable failure reaches attempt 5, set `status = blocked`,
+8. never mark a job `completed` merely because the retry budget was exhausted.
 
 ## 11. Reconciliation policy
 
-BE-004 uses a bounded retry policy, for example:
+Automatic retry policy is fixed for BE-004:
 
-- maximum automatic attempts: 5,
-- retry eligibility determined by normalized storage error category,
-- permanent configuration/auth failures become blocked immediately,
-- not-found is terminal success,
-- transient network/5xx errors remain retryable.
+- maximum provider deletion attempts: 5,
+- `not_found` → terminal success,
+- retryable network/timeout/provider-5xx → queued until attempt 5, then blocked,
+- invalid configuration/credentials/authorization → blocked immediately after the failed attempt,
+- blocked jobs require Debug / Problem Router or operator recovery,
+- processing an already `completed` job is a no-op,
+- processing a `blocked` job is a no-op unless a later explicit recovery action requeues it.
 
-The exact backoff scheduler is infrastructure-dependent and may be invoked by a later worker/cron integration. BE-004 must still expose a deterministic `processDeletionJob` service that can be unit tested and safely called repeatedly.
+The exact scheduler/backoff trigger is infrastructure-dependent and is not added here. BE-004 exposes a deterministic `processDeletionJob` service that can be called repeatedly and tested in isolation.
 
 ## 12. Redaction handling
 
@@ -262,19 +293,27 @@ A redacted derivative is a separate private object and a separate evidence-file 
 
 Rules:
 
-- client-side redacted images must be permanently rasterized before upload,
+- client-side redacted images must be permanently rasterized before upload by the later frontend redaction flow,
 - MVP PDFs must be pre-redacted before upload,
-- the server records redaction state but does not claim the content is safely redacted merely from a client flag,
-- the original file remains private unless the user separately deletes it,
-- signed URLs preserve the same ownership checks for both original and redacted files.
+- this public BE-004 upload route always records `unreviewed`,
+- the server must not claim a file is safely redacted merely from client input,
+- the original remains private unless separately deleted,
+- original and redacted derivatives use the same ownership/download/deletion rules.
 
 ## 13. Data model changes
 
-The existing `evidenceFiles` table already contains the core fields required by BE-004. The implementation may add only fields necessary for reliable deletion/reconciliation or redacted-derivative linkage if tests prove they are required.
+The existing `evidenceFiles` table already contains the core fields required by BE-004 and supports an application-generated UUID supplied during insert.
 
-The existing `deletionJobs` table is reused for object deletion state. If uniqueness is required to prevent duplicate active jobs, add an explicit migration rather than relying on application convention alone.
+The existing `deletionJobs` table is reused with:
 
-No signed URL, S3 credential, bearer token, raw session token, or provider error body is stored in either table.
+- `kind = evidence_file_object`,
+- `targetId = evidenceFileId`,
+- `userId = ownerUserId`,
+- statuses `queued`, `completed`, or `blocked` for this task.
+
+If tests show duplicate active jobs are possible under concurrent deletion requests, add a database migration that enforces the chosen idempotency key. Do not silently depend on process-local locking.
+
+No signed URL, S3 credential, bearer token, raw session token, raw provider error, or filesystem absolute path is stored in these tables.
 
 ## 14. Repository/service boundaries
 
@@ -294,13 +333,13 @@ src/repositories/evidence-repository.ts
 src/repositories/deletion-job-repository.ts
 ```
 
-Route handlers should remain thin and delegate validation/business/storage behavior to services.
+Route handlers remain thin and delegate validation/business/storage behavior to services.
 
 The service layer owns:
 
 - validation orchestration,
 - hash calculation,
-- storage-key generation,
+- Evidence File ID and storage-key generation,
 - compensation logic,
 - deletion-state transitions,
 - DTO shaping.
@@ -332,16 +371,17 @@ Requirements:
 
 The following findings are blockers:
 
-- cross-user file metadata, download URL, object bytes, delete ability, or existence disclosure,
+- cross-user file metadata, download target, object bytes, delete ability, or existence disclosure,
 - public ACL/bucket behavior,
 - permanent object URLs,
-- storage key created from unsanitized user path input,
+- storage key created from user-controlled path input,
 - signed URL issued before owner verification,
-- signed URL TTL above 5 minutes for production evidence downloads,
+- S3 signed URL TTL above 300 seconds,
 - storage credentials in browser/client code,
-- deleted metadata still able to obtain a signed URL,
-- deletion job marked successful when the provider deletion actually failed,
-- object-write success followed by DB-write failure without compensation/reconciliation,
+- deleted metadata still able to obtain object bytes or a signed URL,
+- deletion job marked successful when provider deletion actually failed,
+- object-write success followed by metadata-write failure without compensation/reconciliation,
+- orphan object that cannot be deterministically targeted by a queued deletion job,
 - SHA-256 described as legal authenticity/effect proof.
 
 ## 17. Test strategy
@@ -363,40 +403,43 @@ Implementation follows RED → GREEN TDD. At minimum add automated tests for:
 - above-limit rejected,
 - empty file rejected,
 - SHA-256 matches known fixture bytes,
-- storage key excludes raw filename/path traversal input.
+- storage key is exactly derived from owner ID + Evidence File ID and excludes filename/path traversal input.
 
 ### Upload service
 
 - owned VaultItem upload succeeds,
 - foreign VaultItem returns not-found,
 - foreign/mismatched Evidence Event rejected,
+- public upload input cannot set trusted redaction state,
 - object write failure creates no metadata,
 - metadata write failure triggers object compensation,
-- failed compensation creates reconciliation job.
+- failed compensation creates a derivable reconciliation job.
 
 ### Download
 
-- owned active file gets short-lived URL,
+- owned active local file streams bytes,
+- owned active S3 file redirects only after owner check,
 - foreign, missing, and deleted file return identical not-found contract,
-- production signer uses 300-second TTL,
-- response does not expose storage key/credentials.
+- production signer uses exactly 300-second TTL,
+- response does not expose storage key/credentials/filesystem path.
 
 ### Delete/reconcile
 
 - delete immediately prevents future download,
 - physical delete success completes job,
 - provider not-found completes job,
-- transient error increments attempts and remains retryable,
-- permanent error becomes blocked,
+- transient error increments attempts and remains queued before attempt 5,
+- attempt-5 transient failure becomes blocked,
+- permanent error becomes blocked immediately,
 - exhausted retry budget never becomes completed,
-- repeated processor execution is idempotent.
+- completed/blocked processor execution is idempotent.
 
 ### Cross-user regression
 
 - user A cannot read metadata for user B file,
-- user A cannot receive a signed URL for user B file,
+- user A cannot receive/trigger a download target for user B file,
 - user A cannot delete user B file,
-- user A cannot infer whether a guessed user B file id exists from response status/body.
+- user A cannot infer whether a guessed user B file ID exists from response status/body.
 
 ### Final verification
 
