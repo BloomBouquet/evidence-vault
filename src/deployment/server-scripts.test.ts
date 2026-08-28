@@ -11,7 +11,7 @@ describe("integration preview server scripts", () => {
     expect(start).not.toContain("0.0.0.0");
   });
 
-  it("deploys an exact develop SHA with migration, health, and rollback gates", () => {
+  it("deploys an exact develop SHA with migration, health, rollback, and provider gates", () => {
     const deploy = readFileSync("scripts/deploy-preview.sh", "utf8");
 
     expect(deploy).toContain("git merge-base --is-ancestor");
@@ -22,6 +22,8 @@ describe("integration preview server scripts", () => {
     expect(deploy).toContain("evidence-vault-preview");
     expect(deploy).toContain("127.0.0.1:3011/api/health");
     expect(deploy).toContain("PREVIOUS_SHA");
+    expect(deploy).toContain("https://bloombouquet.https.gsmsv.site");
+    expect(deploy).not.toContain("https://playground.https.gsmsv.site");
     expect(deploy).not.toMatch(/cat\s+[^\n]*\.env\.production/);
     expect(deploy).not.toContain("pm2 delete all");
     expect(deploy).not.toMatch(/drizzle[^\n]*(down|rollback)/i);
