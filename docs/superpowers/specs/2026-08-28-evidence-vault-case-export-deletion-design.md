@@ -147,9 +147,9 @@ Keys:
 - `condition_record` — `문제 상태를 보여주는 사진이나 문서`,
 - `request_record` — `환불·반품·해지 등을 요청한 기록`.
 
-For each key, the projection may report how many currently linked evidence files the user assigned to that purpose.
+For each key, the projection reports the count of currently linked, nondeleted evidence files that the user assigned to that purpose.
 
-Copy must describe zero links as an organizational gap, for example `아직 연결하지 않은 자료가 있어요.` It must not say:
+A zero count is presented only as an organizational gap, for example `아직 연결하지 않은 자료가 있어요.` It must not be interpreted or labeled as:
 
 - legally required,
 - evidence insufficient,
@@ -158,7 +158,7 @@ Copy must describe zero links as an organizational gap, for example `아직 연�
 - admissible/authentic,
 - win probability.
 
-`other` linked evidence is shown separately and does not automatically satisfy one of the four checklist keys.
+`other` linked evidence is shown separately and does not satisfy one of the four checklist keys.
 
 ## Chronology projection
 
@@ -208,11 +208,23 @@ Validation:
 - case belongs to caller,
 - selected events belong to the case's VaultItem,
 - selected evidence files are caller-owned, belong to the same VaultItem, are linked to the case, and are not deleted,
-- duplicate IDs are normalized/rejected consistently,
+- duplicate event/evidence IDs are rejected with `422 validation_failed`,
 - maximum 100 selected evidence files,
 - total selected evidence bytes must not exceed 200 MiB for synchronous MVP generation.
 
 The limits protect request memory/runtime and are not claims about provider storage capacity.
+
+### Export lifetime configuration
+
+The packet retention/access TTL is server-owned configuration:
+
+```ts
+type ExportConfig = {
+  packetTtlSeconds: number;
+};
+```
+
+Production configuration must provide a positive bounded value. Clients cannot select expiration. Tests inject explicit values. Missing/invalid production configuration yields a normalized `internal_error`; this task does not invent a retention duration on behalf of the operator.
 
 ### Status lifecycle
 
@@ -222,10 +234,10 @@ Persist the export row before generation using:
 generating → ready
 generating → failed
 ready → deleting → deleted
-ready → expired
+ready → expired → deleted
 ```
 
-The existing `queued` default is migrated/aligned so newly generated synchronous exports use `generating`. Historical/legacy `queued` rows, if any, must be handled explicitly rather than silently treated as ready.
+The existing `queued` default is migrated/aligned so newly generated synchronous exports use `generating`. Any legacy `queued` row is treated as not-ready and never downloadable.
 
 Add export metadata needed for truthful lifecycle reporting:
 
@@ -296,7 +308,7 @@ evidence/001-<sanitized-filename>
 
 Remove path separators/control characters and preserve a safe extension where possible.
 
-## Export storage
+## Export storage and generation
 
 Use a private deterministic object key derived from authenticated owner and export ID, for example:
 
@@ -319,7 +331,13 @@ Generation sequence:
 
 If generation fails before storage write, mark `failed` with a normalized code.
 
-If storage write succeeds but final metadata persistence fails, enqueue an idempotent `export_packet_object` deletion job for the object and return a stable failure. The service must not leave an untracked permanent object intentionally.
+If storage write succeeds but final metadata persistence fails:
+
+1. mark/leave the export nondownloadable (`failed`),
+2. enqueue an idempotent `export_packet_object` deletion job,
+3. return a stable failure.
+
+The service must not intentionally leave an untracked permanent object.
 
 ## Export retrieval/download
 
@@ -338,6 +356,13 @@ Owner-scoped status DTO only. Return:
 
 Do not return storage key or provider URL.
 
+Before returning a `ready` row, compare `expiresAt` with server time. If expired:
+
+1. atomically transition `ready → expired`,
+2. set `deletedAt = now` as the deletion-request timestamp,
+3. enqueue idempotent `export_packet_object` deletion,
+4. return the DTO as `status: expired`.
+
 ### `GET /api/exports/[id]/download`
 
 Rules:
@@ -347,8 +372,10 @@ Rules:
 - obtain a storage download target with `expiresInSeconds: 300`,
 - local adapter may stream bytes; S3 adapter may redirect to a 5-minute signed URL,
 - `Cache-Control: no-store`,
-- cross-user/missing/deleted → normalized `404`,
-- expired → stable non-success response and transition/reconciliation as defined by service.
+- cross-user/missing/deleting/deleted → normalized `404`,
+- expired detection performs the same `ready → expired` + deletion-job transition and returns `410 { "error": "export_expired" }`.
+
+A previously issued 5-minute provider-signed URL may remain usable until its own TTL expires; Evidence Vault does not claim it can revoke a URL already issued by the provider.
 
 ## Export deletion
 
@@ -356,13 +383,20 @@ Rules:
 
 Owner-scoped behavior:
 
-1. immediately make the packet unavailable by setting `deletedAt` and `status = deleting`,
+1. immediately make the packet unavailable by setting `deletedAt = now` and `status = deleting`,
 2. enqueue idempotent deletion job `kind = export_packet_object`,
 3. return `202 { "status": "accepted" }`.
 
-Deletion reconciliation derives the export storage key from owner + export ID or verified metadata and treats storage `not_found` as successful completion.
+Deletion reconciliation treats storage `not_found` as successful completion.
 
-On object deletion success, mark packet `deleted` and clear/retain private metadata only according to the minimum reconciliation/audit need; it must remain nondownloadable from step 1 onward.
+On export-object deletion success:
+
+- set export `status = deleted`,
+- set `storageKey = null`,
+- clear `failureCode`,
+- retain only the export row's non-storage lifecycle metadata (`id`, `caseId`, generated/expiry timestamps, manifestHash, byteSize, deletedAt, status) until normal database/account deletion removes it.
+
+The packet is nondownloadable from the initial `deleting`/`expired` transition onward.
 
 ## Generalized deletion reconciliation
 
@@ -371,7 +405,7 @@ Extend the existing job processor to support:
 - `evidence_file_object`,
 - `export_packet_object`.
 
-Use kind-specific target resolvers rather than a growing `if` chain embedded in route code.
+Use kind-specific target resolvers rather than route-specific deletion logic.
 
 Retry policy remains bounded:
 
@@ -382,44 +416,62 @@ Retry policy remains bounded:
 
 The worker/service never marks a deletion completed before object deletion/not-found is observed.
 
+For an export job, successful object deletion also performs the export lifecycle update described above.
+
 ## Account deletion backend
 
 Add `DELETE /api/account` as the backend contract consumed later by FE-003.
 
 Authenticated sequence:
 
-1. in a database transaction mark `ev_users.deleted_at = now`,
+1. in one database transaction mark `ev_users.deleted_at = now`,
 2. revoke all active Evidence Vault sessions for that user,
 3. enumerate all nondeleted evidence objects and all nondeleted export objects owned through the user's VaultItems/cases,
-4. soft-disable their application access immediately,
-5. create idempotent deletion jobs for every private object,
+4. make application routes inaccessible immediately through the soft-deleted user/session boundary,
+5. create/reuse idempotent deletion jobs for every private object,
 6. return `202 { "status": "accepted" }`.
 
-Because `findActiveSessionByHash` already requires `users.deleted_at IS NULL`, setting `deleted_at` makes existing sessions unusable immediately; explicit session revocation remains required defense-in-depth/cleanup.
+Because `findActiveSessionByHash` already requires `users.deleted_at IS NULL`, setting `deleted_at` makes existing Evidence Vault sessions unusable immediately. Explicit session revocation remains required defense-in-depth/cleanup.
 
-Do not hard-delete the user row while deletion jobs still require user/target metadata.
+Previously issued provider-signed evidence/export URLs may remain valid only for their already-bounded TTL; account deletion does not claim provider URL revocation.
 
-### Account deletion status
+Do not hard-delete the user row while object deletion jobs are queued or blocked.
 
-Expose an authenticated-before-delete or deletion-token-free internal status only if the product can safely authorize it. For MVP FE-003, the user-facing flow after deletion request returns to anonymous state and must not claim completion.
+### Final account cleanup
 
-Operational completion is determined by reconciliation records:
+There is no public account-deletion status endpoint in MVP.
 
-- all required object jobs completed → deletion can be finalized by a separate cleanup step,
-- queued/blocked jobs → deletion remains incomplete and must be visible to operations/QA evidence, not falsely represented as complete.
+Add an internal service equivalent to:
+
+```ts
+maybeFinalizeDeletedAccount(userId): Promise<boolean>
+```
+
+It runs after account deletion is queued and after each deletion job for that user reaches `completed`.
+
+Finalization rules:
+
+- user must already have `deletedAt`,
+- no required evidence/export deletion job may be `queued` or `blocked`,
+- every private object associated with the user must have a completed/not-found deletion outcome,
+- when these conditions are true, hard-delete the user row so FK cascades remove remaining application metadata, sessions, VaultItems, cases, export rows, acceptance rows, and deletion-job rows,
+- if the user has zero private objects, finalization may hard-delete immediately after the soft-delete transaction completes,
+- if any job is blocked, finalization returns false and retains the soft-deleted account for operator recovery; it must not report completion.
+
+No user-facing message may claim all data is destroyed based only on the initial `202` response.
 
 BE-005 does not invent an email/status notification channel.
 
 ## Migration strategy
 
-BE-005 implementation must begin from the latest `develop` after prerequisite Backend work is integrated and must allocate the **next available migration number**. It must never renumber existing migrations.
+BE-005 implementation must begin from the latest `develop` after earlier Backend work is integrated and allocate the **next available migration number**. It must never renumber existing migrations.
 
 Expected schema changes include:
 
 - one-open-case partial unique index,
 - `case_evidence_links.purpose`,
 - export lifecycle columns,
-- any indexes required for owner/status/deletion reconciliation queries.
+- indexes required for owner/status/deletion-reconciliation queries.
 
 The committed migration sequence must be applied to a PostgreSQL 16 CI container before tests/build are considered green.
 
@@ -435,7 +487,8 @@ Objective blockers:
 - permanent/public export URL,
 - server export generation using public/signed HTTP round-trip instead of internal object read,
 - manifest/summary containing session/Bouquet/storage secrets,
-- account deletion that leaves app access active after request acceptance,
+- account deletion that leaves application session access active after request acceptance,
+- hard-deleting account metadata before private-object reconciliation permits finalization,
 - reporting deletion completed while object jobs are queued/blocked,
 - legal/authenticity/admissibility/success claims.
 
@@ -452,7 +505,7 @@ Required automated coverage:
 5. checklist counts only user-selected link purposes,
 6. chronology includes only same owned VaultItem events in deterministic order,
 7. storage adapters implement server-only raw read,
-8. export selection rejects unowned/unlinked/deleted resources,
+8. export selection rejects duplicate/unowned/unlinked/deleted resources,
 9. selection count/byte limits are enforced,
 10. packet contains `summary.pdf`, `manifest.json`, `evidence/*` only at top level,
 11. manifest hash matches exact manifest bytes,
@@ -461,13 +514,14 @@ Required automated coverage:
 14. storage-write/metadata-failure queues orphan export deletion,
 15. export GET/download/delete are owner-scoped,
 16. download target TTL is 300 seconds,
-17. export delete denies access immediately and reconciles object deletion,
-18. deletion processor supports evidence and export kinds with bounded retry/not-found completion,
-19. account deletion marks user deleted before response, revokes sessions, and queues all private objects idempotently,
-20. blocked deletion is never reported completed,
-21. complete PostgreSQL migration, unit suite, production build pass.
+17. expired packet transitions to `expired`, becomes nondownloadable, and queues deletion,
+18. explicit export delete denies access immediately and reconciles object deletion,
+19. deletion processor supports evidence and export kinds with bounded retry/not-found completion,
+20. account deletion marks user deleted before response, revokes sessions, and queues all private objects idempotently,
+21. account finalization hard-deletes only after all required jobs complete and refuses blocked/queued state,
+22. complete PostgreSQL migration, unit suite, production build pass.
 
-A real production bucket/deployed download and final account-erasure operation are not claimed until later deployment/QA evidence performs them.
+A real production bucket/deployed download and final production account-erasure operation are not claimed until later deployment/QA evidence performs them.
 
 ## Explicit non-goals
 
@@ -488,9 +542,9 @@ BE-005 is ready for integration when:
 - cases and evidence links are owner scoped and neutral,
 - preparation projection is deterministic and non-legal,
 - export packet bytes are generated from verified private evidence through internal storage reads,
-- generated packet structure/hash/download lifecycle matches this contract,
+- generated packet structure/hash/download/expiry lifecycle matches this contract,
 - export/evidence deletion reconciliation is idempotent and bounded,
-- account deletion immediately removes application access and queues all private-object destruction,
-- no deletion completion is claimed before reconciliation evidence supports it,
+- account deletion immediately removes application-session access and queues all private-object destruction,
+- final hard deletion occurs only after reconciliation evidence supports it,
 - PostgreSQL migration, full tests, and production build are green,
 - real production storage/deployment checks not performed remain explicitly unclaimed.
