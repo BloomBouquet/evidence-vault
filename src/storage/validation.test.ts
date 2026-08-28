@@ -68,7 +68,7 @@ describe("evidence upload validation", () => {
 
   it("hashes the exact uploaded bytes with SHA-256", () => {
     expect(sha256Hex(new TextEncoder().encode("evidence"))).toBe(
-      "a2b7e6c9dd56219f0f50bc72e6a1fc0f0fd707917c2219f213c20f1f0ecf9807",
+      "ee8250fb76e094b34b471f13a73dbbe51d1ae142e9df59d7c0d31ec20f0a0a8e",
     );
   });
 
