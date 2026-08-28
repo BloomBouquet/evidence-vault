@@ -21,6 +21,12 @@ export type EvidenceUploadRouteDependencies = {
   uploadEvidence(input: UploadEvidenceFileInput): Promise<EvidenceFileDto>;
 };
 
+type UploadFileLike = {
+  name: string;
+  type: string;
+  arrayBuffer(): Promise<ArrayBuffer>;
+};
+
 function readCookie(request: Request, name: string) {
   const header = request.headers.get("cookie");
   if (!header) return null;
@@ -63,6 +69,16 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function isUploadFile(value: unknown): value is UploadFileLike {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<UploadFileLike>;
+  return (
+    typeof candidate.name === "string" &&
+    typeof candidate.type === "string" &&
+    typeof candidate.arrayBuffer === "function"
+  );
+}
+
 export async function createEvidenceUploadResponse(
   request: Request,
   vaultItemId: string,
@@ -79,7 +95,7 @@ export async function createEvidenceUploadResponse(
   }
 
   const file = form.get("file");
-  if (!(file instanceof File)) {
+  if (!isUploadFile(file)) {
     return jsonNoStore({ error: "invalid_request" }, 400);
   }
 
