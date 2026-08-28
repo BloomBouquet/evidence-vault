@@ -20,5 +20,13 @@ export const createEvidenceEventSchema = z.object({
   note: z.string().trim().max(4000).optional(),
 });
 
+export const updateEvidenceEventSchema = z.object({
+  occurredOn: dateOnlySchema.optional(),
+  eventType: z.enum(EVIDENCE_EVENT_TYPES).optional(),
+  title: z.string().trim().min(1).max(120).optional(),
+  note: z.string().trim().max(4000).nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0, "empty_update");
+
 export type EvidenceEventType = (typeof EVIDENCE_EVENT_TYPES)[number];
 export type CreateEvidenceEventInput = z.infer<typeof createEvidenceEventSchema>;
+export type UpdateEvidenceEventInput = z.infer<typeof updateEvidenceEventSchema>;
