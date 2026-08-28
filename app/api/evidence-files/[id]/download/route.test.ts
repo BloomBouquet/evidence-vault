@@ -56,7 +56,9 @@ describe("evidence download route", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-type")).toBe("application/pdf");
     expect(response.headers.get("content-disposition")).toBe('attachment; filename="receipt.pdf"');
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new TextEncoder().encode("evidence"));
+    expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual(
+      Array.from(new TextEncoder().encode("evidence")),
+    );
     expect(fake.getDownload).toHaveBeenCalledWith({ ownerUserId: user.id, evidenceFileId });
   });
 
