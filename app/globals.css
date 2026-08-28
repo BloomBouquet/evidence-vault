@@ -47,6 +47,36 @@ button, input, textarea, select { font: inherit; }
 }
 .nav-login { font-size: 14px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); }
 
+.landing-auth-notice {
+  width: min(760px, calc(100% - 40px));
+  margin: 28px auto 0;
+}
+.auth-entry-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 12px;
+}
+.auth-entry-error a,
+.auth-notice-actions a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-notice-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
 .hero {
   width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
@@ -149,6 +179,78 @@ button, input, textarea, select { font: inherit; }
 .legal-note--compact p { margin-top: 6px; }
 .footer { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 40px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
 
+.protected-shell {
+  min-height: 100vh;
+  background: var(--paper);
+}
+.protected-header {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 84px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(220px, 1fr);
+  gap: 28px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+.protected-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  font-weight: 800;
+  letter-spacing: -.04em;
+}
+.protected-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  font-size: 13px;
+}
+.protected-nav a { border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
+.protected-nav span { color: var(--muted); }
+.protected-identity {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.project-sign-out {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.project-sign-out__note { color: var(--muted); font-size: 11px; }
+.protected-main {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 64px 0 96px;
+}
+.dashboard-handoff {
+  max-width: 760px;
+  padding: 36px 0 0;
+  border-top: 1px solid var(--ink);
+}
+.dashboard-handoff h1 {
+  margin: 0;
+  font: 500 clamp(42px, 6vw, 72px)/1.02 var(--font-display);
+  letter-spacing: -.055em;
+}
+.dashboard-handoff > p:not(.eyebrow) {
+  max-width: 640px;
+  margin: 22px 0 0;
+  color: var(--muted);
+  line-height: 1.8;
+  word-break: keep-all;
+}
+
 @media (max-width: 850px) {
   .topbar { height: 70px; }
   .hero { grid-template-columns: 1fr; padding: 60px 0 70px; gap: 54px; }
@@ -159,6 +261,16 @@ button, input, textarea, select { font: inherit; }
   .step-card { grid-template-columns: 44px 1fr; }
   .step-card p { grid-column: 2; }
   .legal-note { grid-template-columns: 1fr; gap: 8px; }
+  .protected-header {
+    grid-template-columns: 1fr auto;
+    padding: 18px 0;
+  }
+  .protected-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+  .protected-identity { grid-column: 2; grid-row: 1; }
 }
 
 @media (max-width: 520px) {
@@ -171,4 +283,40 @@ button, input, textarea, select { font: inherit; }
   .urgency { width: 44px; height: 44px; }
   .radar-footer { flex-direction: column; gap: 6px; }
   .footer { flex-direction: column; gap: 8px; }
+  .landing-auth-notice { width: calc(100% - 28px); margin-top: 18px; }
+  .auth-entry-error {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .auth-notice-actions { flex-direction: column; align-items: flex-start; }
+  .protected-header {
+    width: calc(100% - 28px);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .protected-brand { align-self: flex-start; }
+  .protected-nav {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 18px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    white-space: nowrap;
+  }
+  .protected-identity {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .project-sign-out {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+  .protected-main { width: calc(100% - 28px); padding: 44px 0 72px; }
+  .dashboard-handoff { padding-top: 28px; }
+  .dashboard-handoff h1 { font-size: clamp(40px, 14vw, 58px); }
 }

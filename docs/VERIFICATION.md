@@ -132,6 +132,72 @@ The build produced these current auth routes:
 
 AUTH-001 automated verification does **not** claim a real deployed end-to-end Bouquet login. That requires a registered Evidence Vault Bouquet client, actual deployment URLs/configuration, PostgreSQL runtime, and the central Bouquet provider to be available together. The later Frontend AUTHUI/QA flow must verify anonymous → central 꽃다발 portal → callback → protected application → project sign-out/session-expiry behavior in a real browser/deployed-equivalent environment.
 
+## Bouquet auth frontend AUTHUI-001
+
+AUTHUI-001 connects the public landing experience to the merged Bouquet server routes, adds a public session-state layer, establishes a server-gated protected route boundary, and provides Evidence Vault project sign-out without fabricating dashboard data.
+
+### TDD RED evidence
+
+Each new frontend auth behavior was introduced with a failing CI state before the production implementation was added.
+
+| Contract | GitHub Actions run | Observed RED reason |
+|---|---:|---|
+| public `/auth/session` probe client | `33127003076` | existing tests passed; the new client-session suite failed because `src/auth/client-session.ts` did not exist |
+| auth-session provider + landing entry actions | `33127192361` | existing suites passed; the new provider/action contracts failed before the auth UI modules were implemented |
+| auth failure/session-required recovery notice | `33127338951` | existing suites passed; the new auth-error notice suite failed because the component did not exist |
+| server-gated protected session boundary | `33127491550` | existing suites passed; the new protected-session suite failed because the helper did not exist |
+| Evidence Vault project sign-out UX | `33127726943` | existing suites passed; the new sign-out suite failed because the component did not exist |
+| auth/protected responsive composition styles | `33127879050` | 97 existing tests passed and only the 11 new auth-style contract assertions failed because the composition classes were not yet defined |
+
+### Implemented frontend/security contract
+
+- The landing no longer uses the legacy `/auth/login` route; both public entry actions use `/auth/bouquet/start?returnTo=/dashboard`.
+- Public session state is derived only from `GET /auth/session` and exposes only `anonymous`, `authenticated { id, displayName }`, `checking`, or `error` UI states.
+- Session-probe failures are normalized to local UI state; provider response bodies and raw auth details are not rendered.
+- No project-owned password field or browser credential store was introduced.
+- No provider/session/auth value is written to `localStorage` or `sessionStorage`.
+- Protected children are rendered only after the App Router server layout reads the HttpOnly `ev_session` cookie and resolves the project session.
+- The raw session token is used only on the server boundary and is never passed to `ProtectedShell` or other client-rendered props.
+- Anonymous/expired protected access redirects to `/?auth_error=session_required` and displays neutral recovery copy.
+- `/dashboard` is an honest authentication handoff only; it does not fabricate evidence counts, deadlines, or user data before the later dashboard task.
+- Project sign-out POSTs `/auth/sign-out`, handles busy/failure/retry states, returns to `/` on success, and explicitly describes only the current Evidence Vault session.
+- Auth/protected composition uses existing semantic design tokens and includes narrow-screen stacking/wrapping rules.
+
+### Final automated verification
+
+Final AUTHUI-001 code-state verification run: `33130112456` at branch HEAD `271e6845c213d09e51e60d795117dd69204cd0a8`.
+
+Observed results:
+
+```text
+pnpm install --frozen-lockfile  PASS
+pnpm test:run                  PASS — 26 test files, 108 tests
+pnpm build                     PASS — Next.js 16.3.3 production build and TypeScript check
+```
+
+The build produced the authenticated handoff route in addition to the existing auth endpoints:
+
+```text
+/auth/bouquet/start
+/auth/bouquet/callback
+/auth/session
+/auth/sign-out
+/dashboard
+```
+
+A final diff review found no AUTHUI blocker for project-owned credentials, Web Storage auth persistence, raw provider-error rendering, external `returnTo` construction, client exposure of `ev_session`, or claims that Evidence Vault sign-out also ends the central Bouquet SSO session.
+
+### Not yet claimed as PASS
+
+AUTHUI-001 automated verification does **not** claim a real deployed end-to-end Bouquet login or a manual accessibility/visual pass. The following still require a deployed-equivalent environment and real browser:
+
+- registered Evidence Vault Bouquet client + real anonymous → Bouquet → callback → `/dashboard` flow,
+- PostgreSQL-backed session persistence during that flow,
+- project sign-out and session-expiry behavior against the deployed provider/app pair,
+- 320px viewport visual inspection, 200% zoom, keyboard-only traversal, and screen-reader verification of the composed auth surfaces.
+
+The CSS contract verifies that narrow-screen rules exist, but that is not a substitute for a manual browser layout/accessibility pass.
+
 ## Current verification rule
 
-A later Agent must re-run the relevant unit/build/browser checks after composing these primitives and auth routes into onboarding, dashboard, timeline, upload, case/export, or privacy flows. Existing DS-001/AUTH-001 CI evidence is not a substitute for testing those future flows.
+A later Agent must re-run the relevant unit/build/browser checks after composing these primitives and auth routes into onboarding, dashboard, timeline, upload, case/export, or privacy flows. Existing DS-001/AUTH-001/AUTHUI-001 CI evidence is not a substitute for testing those future flows.
