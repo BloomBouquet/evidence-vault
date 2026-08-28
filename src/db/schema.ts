@@ -118,6 +118,27 @@ export const exportPackets = pgTable("ev_export_packets", {
   createdAt: createdAt(),
 });
 
+export const onboardingAcceptances = pgTable(
+  "ev_onboarding_acceptances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    age14ConfirmedAt: timestamp("age_14_confirmed_at", { withTimezone: true }).notNull(),
+    termsVersion: varchar("terms_version", { length: 64 }).notNull(),
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }).notNull(),
+    privacyVersion: varchar("privacy_version", { length: 64 }).notNull(),
+    privacyAcceptedAt: timestamp("privacy_accepted_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("ev_onboarding_acceptances_owner_versions_unique").on(
+      table.userId,
+      table.termsVersion,
+      table.privacyVersion,
+    ),
+  ],
+);
+
 export const deletionJobs = pgTable(
   "ev_deletion_jobs",
   {
