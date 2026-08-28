@@ -37,7 +37,7 @@ export const vaultItems = pgTable("ev_vault_items", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   title: varchar("title", { length: 120 }).notNull(),
   category: varchar("category", { length: 40 }).notNull(),
-  merchantName: varchar("merchant_name", { length: 120 }).notNull(),
+  merchantName: varchar("merchant_name", { length: 120 }),
   purchaseOrStartDate: date("purchase_or_start_date").notNull(),
   amount: bigint("amount", { mode: "number" }),
   currency: char("currency", { length: 3 }).default("KRW").notNull(),
