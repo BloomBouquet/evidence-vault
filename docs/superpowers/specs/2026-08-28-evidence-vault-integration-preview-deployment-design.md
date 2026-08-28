@@ -58,7 +58,7 @@ The preview runtime uses a server-owned environment file that is never committed
 
 `/home/ubuntu/evidence-vault/.env.production`
 
-Required values:
+Required values after BloomBouquet registration:
 
 - `NODE_ENV=production`
 - `PORT=3011`
@@ -68,6 +68,14 @@ Required values:
 - `BOUQUET_BASE_URL=https://playground.https.gsmsv.site`
 - `BOUQUET_CLIENT_ID=<client id issued by BloomBouquet for the submitted preview>`
 - `BOUQUET_REDIRECT_URI=https://evidence-vault.https.gsmsv.site/auth/bouquet/callback`
+
+### First-deployment bootstrap exception
+
+The very first public preview must exist before BloomBouquet can register its demo URL, while BloomBouquet does not issue the final client ID until the authenticated submission is created. For this one bootstrap window only, the server may use:
+
+`BOUQUET_CLIENT_ID=evidence-vault-registration-pending`
+
+This value is not a real OAuth client and must never be described as working authentication. During this bootstrap window only root and `/api/health` availability are acceptance checks; `/auth/bouquet/start` is intentionally not accepted as a successful OAuth smoke. The window ends immediately after the real submission returns its `bouquetClientId`, at which point the server environment is updated and the preview is restarted before the evaluator worker resumes.
 
 Storage remains outside this deployment's release claim. The current preview must not pretend private evidence upload is production-ready if S3-compatible storage has not yet passed its own implementation and QA task. Existing unfinished product areas remain visible blockers rather than being represented as complete.
 
@@ -87,7 +95,7 @@ Deployment order:
 2. create a backup/snapshot when the database already contains data;
 3. run forward-only committed Drizzle migrations;
 4. build/start the application;
-5. run health/auth smoke checks.
+5. run health/auth smoke checks appropriate to the current bootstrap or registered phase.
 
 The deploy workflow must not perform an automatic down-migration. If migration fails, the application is not restarted onto the new code.
 
@@ -108,7 +116,7 @@ Required stages:
 3. `pnpm test:run`;
 4. `pnpm build`;
 5. validate required deployment files and committed migrations;
-6. connect to the authorized host using repository secrets;
+6. connect to the authorized host using repository/organization Actions credentials;
 7. fetch/reset the server checkout to the exact verified SHA;
 8. validate server environment without printing values;
 9. verify PostgreSQL connectivity and run migrations;
@@ -116,6 +124,8 @@ Required stages:
 11. verify `http://127.0.0.1:3011/api/health`;
 12. verify Nginx-facing HTTPS health/root when the domain is available;
 13. save the PM2 process list only after smoke checks pass.
+
+The workflow may reference secret names but never secret values. If the Evidence Vault repository does not have access to the required SSH/deployment credentials through repository or organization Actions settings, that is an explicit infrastructure blocker requiring an authorized GitHub settings action; credentials are not copied into source or logs as a workaround.
 
 A failed build, migration, process start, or health check fails the deployment run. The workflow must not report success merely because SSH commands completed.
 
@@ -147,7 +157,7 @@ Before publishing the first authenticated Evidence Vault submission:
 4. keep the local evaluator LLM and BloomBouquet web/backend online;
 5. publish the Evidence Vault submission through the normal authenticated BloomBouquet management flow;
 6. capture the returned `bouquetClientId` without exposing session cookies or secrets;
-7. update only `BOUQUET_CLIENT_ID` in Evidence Vault's server-owned environment;
+7. replace the bootstrap `BOUQUET_CLIENT_ID` in Evidence Vault's server-owned environment;
 8. restart `evidence-vault-preview`;
 9. verify application health and OAuth authorization-start redirect using the issued client ID and exact callback URI;
 10. resume `bloom-worker`;
@@ -162,12 +172,14 @@ The first registered project is:
 - Team: `해바라기`
 - Project name: `증빙함`
 - Project slug: `evidence-vault`
-- Frontend/backend repository URL: `https://github.com/BloomBouquet/evidence-vault`
+- Initial submission version: `0.1.0-preview.1`
+- Frontend repository URL: `https://github.com/BloomBouquet/evidence-vault`
+- Backend repository URL: `https://github.com/BloomBouquet/evidence-vault`
 - Demo URL: `https://evidence-vault.https.gsmsv.site`
 - `requiresAuth=true`
 - Auth redirect URI: `https://evidence-vault.https.gsmsv.site/auth/bouquet/callback`
 
-Because Evidence Vault is a single Next.js repository containing both UI and server/BFF code, the same canonical repository may be recorded as the primary repository evidence rather than fabricating a nonexistent second repository.
+Evidence Vault is a single Next.js repository containing both UI and server/BFF code. Recording the same canonical repository in both frontend and backend repository fields is therefore truthful monorepo evidence and ensures the evaluator includes both frontend and backend review roles; it does not fabricate a second repository.
 
 Registration must occur through the authenticated BloomBouquet owner flow. The deployment task must not bypass bouquet authentication by writing directly to the BloomBouquet database or inventing an owner identity.
 
@@ -194,7 +206,7 @@ Provider code, access token, PKCE verifier, session secret, raw application sess
 After OAuth smoke succeeds and `bloom-worker` resumes, the registration is considered evaluation-complete only when evidence shows:
 
 - Run observed as `QUEUED` then claimed/`RUNNING`;
-- required independent evaluator roles persisted;
+- required independent evaluator roles persisted, including backend and code-review because the monorepo is supplied as repository evidence;
 - Run reaches `COMPLETED` rather than being inferred from worker uptime;
 - overall score/stars/report are readable from the public evaluation endpoint;
 - evaluator evidence does not claim unobserved authenticated behavior as observed;
