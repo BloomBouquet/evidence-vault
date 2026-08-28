@@ -32,7 +32,7 @@ require_preview_env() {
   [ "${NODE_ENV:-production}" = "production" ] || fail "NODE_ENV must be production"
   [ "${PORT:-3011}" = "$PREVIEW_PORT" ] || fail "preview port must be 3011"
   [ "$APP_BASE_URL" = "https://evidence-vault.https.gsmsv.site" ] || fail "APP_BASE_URL does not match preview contract"
-  [ "$BOUQUET_BASE_URL" = "https://playground.https.gsmsv.site" ] || fail "BOUQUET_BASE_URL does not match preview contract"
+  [ "$BOUQUET_BASE_URL" = "https://bloombouquet.https.gsmsv.site" ] || fail "BOUQUET_BASE_URL does not match preview contract"
   [ "$BOUQUET_REDIRECT_URI" = "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback" ] || fail "BOUQUET_REDIRECT_URI does not match preview contract"
   [ "${#SESSION_SECRET}" -ge 32 ] || fail "SESSION_SECRET is too short"
 }

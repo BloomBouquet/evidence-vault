@@ -8,7 +8,7 @@ describe("integration preview deployment contract", () => {
     expect(contract).toEqual({
       publicUrl: "https://evidence-vault.https.gsmsv.site",
       oauthCallback: "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback",
-      providerUrl: "https://playground.https.gsmsv.site",
+      providerUrl: "https://bloombouquet.https.gsmsv.site",
       serverDir: "/home/ubuntu/evidence-vault",
       processName: "evidence-vault-preview",
       port: 3011,
