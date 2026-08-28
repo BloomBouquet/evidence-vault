@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/src/db/client";
 import { deadlines, vaultItems } from "@/src/db/schema";
 import type { CreateDeadlineInput, UpdateDeadlineInput } from "@/src/domain/deadline";
@@ -102,18 +102,53 @@ export async function deleteDeadlineWithStore(store: DeadlineStore, input: Deadl
   return store.delete(input.vaultItemId, input.deadlineId);
 }
 
-export function listDeadlines(input: DeadlineOwnerKey) {
-  return listDeadlinesWithStore(drizzleDeadlineStore, input);
+function ownedVaultIds(ownerUserId: string, vaultItemId: string) {
+  return getDb()
+    .select({ id: vaultItems.id })
+    .from(vaultItems)
+    .where(and(eq(vaultItems.id, vaultItemId), eq(vaultItems.userId, ownerUserId)));
 }
 
-export function createDeadline(input: DeadlineOwnerKey & { input: CreateDeadlineInput }) {
+export async function listDeadlines({ ownerUserId, vaultItemId }: DeadlineOwnerKey) {
+  const rows = await getDb()
+    .select()
+    .from(deadlines)
+    .where(and(
+      eq(deadlines.vaultItemId, vaultItemId),
+      inArray(deadlines.vaultItemId, ownedVaultIds(ownerUserId, vaultItemId)),
+    ))
+    .orderBy(asc(deadlines.dueDate), asc(deadlines.createdAt));
+
+  if (rows.length > 0) return rows;
+  const owned = await drizzleDeadlineStore.ownsVault(ownerUserId, vaultItemId);
+  return owned ? [] : null;
+}
+
+export async function createDeadline(input: DeadlineOwnerKey & { input: CreateDeadlineInput }) {
   return createDeadlineWithStore(drizzleDeadlineStore, input);
 }
 
-export function updateDeadline(input: DeadlineOwnedKey & { input: UpdateDeadlineInput }) {
-  return updateDeadlineWithStore(drizzleDeadlineStore, input);
+export async function updateDeadline({ ownerUserId, vaultItemId, deadlineId, input }: DeadlineOwnedKey & { input: UpdateDeadlineInput }) {
+  const [row] = await getDb()
+    .update(deadlines)
+    .set({ ...input, updatedAt: new Date() })
+    .where(and(
+      eq(deadlines.id, deadlineId),
+      eq(deadlines.vaultItemId, vaultItemId),
+      inArray(deadlines.vaultItemId, ownedVaultIds(ownerUserId, vaultItemId)),
+    ))
+    .returning();
+  return row ?? null;
 }
 
-export function deleteDeadline(input: DeadlineOwnedKey) {
-  return deleteDeadlineWithStore(drizzleDeadlineStore, input);
+export async function deleteDeadline({ ownerUserId, vaultItemId, deadlineId }: DeadlineOwnedKey) {
+  const rows = await getDb()
+    .delete(deadlines)
+    .where(and(
+      eq(deadlines.id, deadlineId),
+      eq(deadlines.vaultItemId, vaultItemId),
+      inArray(deadlines.vaultItemId, ownedVaultIds(ownerUserId, vaultItemId)),
+    ))
+    .returning({ id: deadlines.id });
+  return rows.length > 0;
 }
