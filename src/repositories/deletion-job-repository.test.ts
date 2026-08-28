@@ -16,6 +16,8 @@ const baseJob = {
   status: "queued",
   attempts: 0,
   lastErrorCode: null,
+  createdAt: new Date("2026-08-28T00:00:00.000Z"),
+  updatedAt: new Date("2026-08-28T00:00:00.000Z"),
 };
 
 function store(): DeletionJobStore {
