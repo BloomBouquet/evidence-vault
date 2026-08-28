@@ -6,7 +6,7 @@ describe("probeSession", () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ user: null }), { status: 200 })) as unknown as typeof fetch;
 
     await expect(probeSession(fetchImpl)).resolves.toEqual({ status: "anonymous" });
-    expect(fetchImpl).toHaveBeenCalledWith("/auth/session", {
+    expect(fetchImpl).toHaveBeenCalledWith("/apps/evidence-vault/auth/session", {
       method: "GET",
       cache: "no-store",
       credentials: "same-origin",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthConfig } from "@/src/auth/config";
 import { revokeProjectSession } from "@/src/auth/project-session";
+import { APP_BASE_PATH } from "@/src/routing/app-path";
 
 export type SignOutDependencies = {
   revokeSession: typeof revokeProjectSession;
@@ -36,7 +37,7 @@ export async function createSignOutResponse(
     httpOnly: true,
     secure: dependencies.secureCookies,
     sameSite: "lax",
-    path: "/",
+    path: APP_BASE_PATH,
     maxAge: 0,
   });
   return response;
