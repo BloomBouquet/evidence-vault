@@ -24,11 +24,13 @@ describe("LocalEvidenceStorage", () => {
 
     await storage.putObject({ storageKey, bytes, mimeType: "application/pdf" });
 
-    expect(new Uint8Array(await readFile(join(root, storageKey)))).toEqual(bytes);
-    await expect(storage.getDownloadTarget({ storageKey, expiresInSeconds: 300 })).resolves.toEqual({
-      kind: "bytes",
-      bytes,
-    });
+    expect(Array.from(await readFile(join(root, storageKey)))).toEqual(Array.from(bytes));
+
+    const target = await storage.getDownloadTarget({ storageKey, expiresInSeconds: 300 });
+    expect(target.kind).toBe("bytes");
+    if (target.kind === "bytes") {
+      expect(Array.from(target.bytes)).toEqual(Array.from(bytes));
+    }
   });
 
   it("rejects storage keys that escape the configured root", async () => {
