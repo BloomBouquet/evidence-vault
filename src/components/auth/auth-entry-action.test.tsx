@@ -32,7 +32,7 @@ describe("AuthEntryAction", () => {
     renderAction(placement, async () => ({ status: "anonymous" }));
 
     const link = await screen.findByRole("link", { name: new RegExp(label) });
-    expect(link).toHaveAttribute("href", "/auth/bouquet/start?returnTo=/dashboard");
+    expect(link).toHaveAttribute("href", "/apps/evidence-vault/auth/bouquet/start?returnTo=/dashboard");
   });
 
   it.each([
@@ -45,7 +45,7 @@ describe("AuthEntryAction", () => {
     }));
 
     const link = await screen.findByRole("link", { name: new RegExp(label) });
-    expect(link).toHaveAttribute("href", "/dashboard");
+    expect(link).toHaveAttribute("href", "/apps/evidence-vault/dashboard");
   });
 
   it("offers retry and direct login recovery after probe failure", async () => {
@@ -59,13 +59,13 @@ describe("AuthEntryAction", () => {
     expect(screen.queryByText("private network detail")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "꽃다발로 로그인" })).toHaveAttribute(
       "href",
-      "/auth/bouquet/start?returnTo=/dashboard",
+      "/apps/evidence-vault/auth/bouquet/start?returnTo=/dashboard",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "다시 확인" }));
     expect(await screen.findByRole("link", { name: /꽃다발로 시작하기/ })).toHaveAttribute(
       "href",
-      "/auth/bouquet/start?returnTo=/dashboard",
+      "/apps/evidence-vault/auth/bouquet/start?returnTo=/dashboard",
     );
   });
 });

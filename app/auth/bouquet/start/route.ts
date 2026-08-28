@@ -3,6 +3,7 @@ import { buildBouquetPortalUrl } from "@/src/auth/bouquet-client";
 import { getAuthConfig, type AuthConfig } from "@/src/auth/config";
 import { sanitizeReturnTo, sealLoginAttempt } from "@/src/auth/login-attempt";
 import { createPkceAttempt } from "@/src/auth/pkce";
+import { APP_BASE_PATH } from "@/src/routing/app-path";
 
 type LoginStartDependencies = {
   config: AuthConfig;
@@ -36,7 +37,7 @@ export function createLoginStartResponse(
     httpOnly: true,
     secure: dependencies.config.secureCookies,
     sameSite: "lax",
-    path: "/auth/bouquet",
+    path: `${APP_BASE_PATH}/auth/bouquet`,
     maxAge: 600,
   });
   return response;

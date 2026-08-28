@@ -10,8 +10,8 @@ describe("SignOutButton", () => {
     render(<SignOutButton fetchImpl={fetchImpl} navigate={navigate} />);
     fireEvent.click(screen.getByRole("button", { name: "로그아웃" }));
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
-    expect(fetchImpl).toHaveBeenCalledWith("/auth/sign-out", {
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/apps/evidence-vault/"));
+    expect(fetchImpl).toHaveBeenCalledWith("/apps/evidence-vault/auth/sign-out", {
       method: "POST",
       credentials: "same-origin",
     });
@@ -45,7 +45,7 @@ describe("SignOutButton", () => {
     expect(navigate).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/apps/evidence-vault/"));
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 

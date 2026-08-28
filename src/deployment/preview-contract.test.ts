@@ -6,8 +6,8 @@ describe("integration preview deployment contract", () => {
     const contract = JSON.parse(readFileSync("deploy/preview-contract.json", "utf8"));
 
     expect(contract).toEqual({
-      publicUrl: "https://evidence-vault.https.gsmsv.site",
-      oauthCallback: "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback",
+      publicUrl: "https://bloombouquet.https.gsmsv.site/apps/evidence-vault/",
+      oauthCallback: "https://bloombouquet.https.gsmsv.site/apps/evidence-vault/auth/bouquet/callback",
       providerUrl: "https://bloombouquet.https.gsmsv.site",
       serverDir: "/home/ubuntu/evidence-vault",
       processName: "evidence-vault-preview",

@@ -1,3 +1,5 @@
+import { appPath } from "@/src/routing/app-path";
+
 export type PublicSessionUser = {
   id: string;
   displayName: string;
@@ -15,7 +17,7 @@ export async function probeSession(
   fetchImpl: typeof fetch = fetch,
 ): Promise<SessionProbeResult> {
   try {
-    const response = await fetchImpl("/auth/session", {
+    const response = await fetchImpl(appPath("/auth/session"), {
       method: "GET",
       cache: "no-store",
       credentials: "same-origin",

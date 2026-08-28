@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Notice } from "@/src/components/ui/notice";
+import { appPath } from "@/src/routing/app-path";
 
 type SignOutButtonProps = {
   fetchImpl?: typeof fetch;
@@ -27,12 +28,12 @@ export function SignOutButton({
     setFailed(false);
 
     try {
-      const response = await fetchImpl("/auth/sign-out", {
+      const response = await fetchImpl(appPath("/auth/sign-out"), {
         method: "POST",
         credentials: "same-origin",
       });
       if (!response.ok) throw new Error("project_sign_out_failed");
-      navigate("/");
+      navigate(appPath("/"));
     } catch {
       setFailed(true);
     } finally {

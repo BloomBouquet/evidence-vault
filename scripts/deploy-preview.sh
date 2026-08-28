@@ -5,7 +5,10 @@ APP_DIR="/home/ubuntu/evidence-vault"
 ENV_FILE="$APP_DIR/.env.production"
 PROCESS_NAME="evidence-vault-preview"
 PREVIEW_PORT="3011"
-HEALTH_URL="http://127.0.0.1:3011/api/health"
+PUBLIC_URL="https://bloombouquet.https.gsmsv.site/apps/evidence-vault/"
+OAUTH_CALLBACK="https://bloombouquet.https.gsmsv.site/apps/evidence-vault/auth/bouquet/callback"
+PROVIDER_URL="https://bloombouquet.https.gsmsv.site"
+HEALTH_URL="http://127.0.0.1:3011/apps/evidence-vault/api/health"
 
 fail() {
   echo "preview deploy failed: $1" >&2
@@ -31,9 +34,9 @@ require_preview_env() {
 
   [ "${NODE_ENV:-production}" = "production" ] || fail "NODE_ENV must be production"
   [ "${PORT:-3011}" = "$PREVIEW_PORT" ] || fail "preview port must be 3011"
-  [ "$APP_BASE_URL" = "https://evidence-vault.https.gsmsv.site" ] || fail "APP_BASE_URL does not match preview contract"
-  [ "$BOUQUET_BASE_URL" = "https://bloombouquet.https.gsmsv.site" ] || fail "BOUQUET_BASE_URL does not match preview contract"
-  [ "$BOUQUET_REDIRECT_URI" = "https://evidence-vault.https.gsmsv.site/auth/bouquet/callback" ] || fail "BOUQUET_REDIRECT_URI does not match preview contract"
+  [ "$APP_BASE_URL" = "$PUBLIC_URL" ] || fail "APP_BASE_URL does not match preview contract"
+  [ "$BOUQUET_BASE_URL" = "$PROVIDER_URL" ] || fail "BOUQUET_BASE_URL does not match preview contract"
+  [ "$BOUQUET_REDIRECT_URI" = "$OAUTH_CALLBACK" ] || fail "BOUQUET_REDIRECT_URI does not match preview contract"
   [ "${#SESSION_SECRET}" -ge 32 ] || fail "SESSION_SECRET is too short"
 }
 
@@ -133,4 +136,4 @@ if ! wait_for_health; then
 fi
 
 pm2 save >/dev/null || fail "pm2 save failed"
-echo "Evidence Vault preview deploy OK sha=$VERIFIED_SHA"
+echo "Evidence Vault preview deploy OK sha=$VERIFIED_SHA public=$PUBLIC_URL callback=$OAUTH_CALLBACK"
