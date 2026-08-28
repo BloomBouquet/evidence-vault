@@ -11,7 +11,8 @@ BE-004 implements the server-side private evidence file boundary for Evidence Va
 - immediate application-level deletion revocation,
 - bounded object-deletion reconciliation,
 - database-level deletion-job idempotency,
-- cross-user negative security regressions.
+- cross-user negative security regressions,
+- early rejection of declared oversized multipart request bodies before body parsing.
 
 ## Security contract verified by automated tests
 
@@ -27,7 +28,8 @@ The automated suite covers these negative and privacy-sensitive behaviors:
 - upload/download/delete responses use normalized public errors and `Cache-Control: no-store`,
 - S3 download targets are generated with a 300-second expiry,
 - deletion reconciliation treats provider not-found as completed, retries transient failures, stops after five attempts, and blocks permanent failures,
-- `(user_id, kind, target_id)` deletion-job uniqueness is enforced by PostgreSQL migration `0001_deletion_job_idempotency.sql`.
+- `(user_id, kind, target_id)` deletion-job uniqueness is enforced by PostgreSQL migration `0001_deletion_job_idempotency.sql`,
+- a declared multipart body above 21 MiB is rejected with `413 file_too_large` before `request.formData()` is invoked.
 
 ## TDD and failure evidence
 
@@ -40,17 +42,19 @@ The automated suite covers these negative and privacy-sensitive behaviors:
 | deletion reconciliation GREEN | `33141357990` | migration, full unit suite, and production build passed |
 | owner-isolation regression GREEN | `33141454390` | 42 test files / 176 tests passed and production build passed |
 | post-`develop` integration verification | `33142205240` | PostgreSQL migration, 42 test files / 176 tests, and Next.js production build all passed |
+| oversized multipart preflight RED | `33143412582` | 176 existing tests passed; only the new preflight assertion failed because the route returned `201` instead of rejecting before `request.formData()` |
+| oversized multipart preflight GREEN | `33143513862` | PostgreSQL migration, 42 test files / 177 tests, and production build all passed |
 
 The feature branch was synchronized with `develop` using merge commit `e4087c7fee9cb3c67e706b9a23f44d7a9045693d`. At that integration point the branch comparison was `ahead 38 / behind 0` relative to `develop`.
 
 ## Final automated verification
 
-CI run: `33142205240`
+Final code-state CI run: `33143513862` at branch HEAD `ce56f885f50e97a05a100cf9e0a5f61a46fb2c31`.
 
 ```text
 pnpm install --frozen-lockfile  PASS
 pnpm db:migrate                PASS — PostgreSQL 16 container
-pnpm test:run                  PASS — 42 test files, 176 tests
+pnpm test:run                  PASS — 42 test files, 177 tests
 pnpm build                     PASS — Next.js 16.3.3 production build + TypeScript check
 ```
 
@@ -62,7 +66,7 @@ The production build included these BE-004 routes:
 /api/evidence-files/[id]
 ```
 
-Preview verification run `33142205153` also passed dependency installation, committed migration verification, unit tests, and production build on the same integrated source. Its `server-probe` and `deploy` jobs were skipped by workflow conditions, so this evidence is not a claim that the branch was deployed to a live server.
+The latest preview verification remains a verification-only workflow for this PR; actual `server-probe` and `deploy` jobs are conditionally skipped outside explicit dispatch, so this evidence is not a claim that the branch was deployed to a live server.
 
 ## Not yet claimed as PASS
 
@@ -72,6 +76,7 @@ BE-004 does **not** claim the following as verified yet:
 - live signed-URL download against that provider,
 - production-region object deletion and reconciliation against real provider failures,
 - a deployed browser end-to-end upload/download/delete workflow using real Bouquet SSO,
+- transport-level enforcement for oversized or chunked bodies when `Content-Length` is absent or dishonest,
 - manual browser accessibility/visual checks for evidence UI that will be implemented by later frontend tasks.
 
-No provider credentials, signed URLs, storage keys, or private object contents are recorded in this document.
+The application route now performs an early declared-length guard, but this is not a substitute for reverse-proxy/platform request-size enforcement. No provider credentials, signed URLs, storage keys, or private object contents are recorded in this document.
